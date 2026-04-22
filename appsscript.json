@@ -1,0 +1,34 @@
+{
+  "timeZone": "Asia/Bangkok",
+  "dependencies": {},
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "sheets": {
+    "macros": [
+      {
+        "menuName": "Sort by AC TYPE and FROM",
+        "functionName": "SortbyACTYPEandFROM"
+      },
+      {
+        "menuName": "sortHAN 1",
+        "functionName": "sortHAN1"
+      },
+      {
+        "menuName": "sortHAN",
+        "functionName": "sortHAN1"
+      },
+      {
+        "menuName": "sortHAN3",
+        "functionName": "sortHAN3"
+      },
+      {
+        "menuName": "sortHAN",
+        "functionName": "sortHAN"
+      }
+    ]
+  },
+  "webapp": {
+    "executeAs": "USER_DEPLOYING",
+    "access": "MYSELF"
+  }
+}
