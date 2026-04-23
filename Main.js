@@ -13,7 +13,6 @@ function onOpen() {
       .addSeparator()
       .addItem("Create new Roster", "createNewRoster")
       .addItem("Update A/C Schedules", "updateACSchedules")
-      .addItem("Assign CRS C", "assignCRSC")
       .addSeparator()
       .addItem("Update Public Roster", "updatePublicRoster")
       .addSeparator()

@@ -15,13 +15,11 @@ const SCHEDULE_INDEX = {
 };
 
 /**
- * Assign and backup current data to the Assignment config sheet.
+ * Reads any user assignments from Column B on the active sheet and backs them up in memory.
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} currentSheet 
  * @returns {Array<Array<string>>}
  */
-function assignCRSC() {
-  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  var currentSheet = spreadsheet.getActiveSheet();
-
+function getPreviousAssignments(currentSheet) {
   if (currentSheet.getRange("AJ1").getValue() === "") return [];
 
   var startRow = currentSheet.getRange("AJ1").getValue();
@@ -33,12 +31,6 @@ function assignCRSC() {
   var rawID = [];
   for (var i = 0; i < id.length; i++){
     rawID.push([id[i][0], name[i][0]]);
-  }
-
-  var assignCSheet = spreadsheet.getSheetByName(CONFIG.SHEET_IDS.ASSIGN_C);
-  if (assignCSheet && rawID.length > 0) {
-    assignCSheet.clearContents();
-    assignCSheet.getRange(1, 1, rawID.length, 2).setValues(rawID);
   }
 
   return rawID;
@@ -55,20 +47,11 @@ function updateACSchedules() {
     if (!sh_schedule) throw new Error("Schedule source sheet not found");
     
     var value_schedule = sh_schedule.getDataRange().getValues();
-    var sh_accheck = sp.getSheetByName(CONFIG.SHEET_IDS.AC_CHECKS_NAME);
     
-    sh_accheck.getDataRange().clearContent();
-    sh_accheck.getRange(1, 1, value_schedule.length, value_schedule[0].length).setValues(value_schedule);
-
-    assignCRSC();
-    var prevAssignSheet = sp.getSheetByName(CONFIG.SHEET_IDS.ASSIGN_C);
-    var previousAssignC = prevAssignSheet ? prevAssignSheet.getDataRange().getValues() : [];
-
     var currentSheet = sp.getActiveSheet();
-    if (currentSheet.getName() === CONFIG.SHEET_IDS.AC_CHECKS_NAME) {
-      SpreadsheetApp.getUi().alert("1.QUAY LẠI TAB ROSTER CẦN UPDATE / 2.CHỌN QC HAN/UPDATE AC SCHEDULES");
-      return;
-    }
+    
+    // Keep user's assigned text in memory during the redraw
+    var previousAssignC = getPreviousAssignments(currentSheet);
     
     if (typeof sortHAN === 'function') {
       sortHAN();
@@ -79,13 +62,12 @@ function updateACSchedules() {
     currentMonth_FirstDay.setHours(0, 0, 0, 0);
     var currentMonth_LastDay = new Date(currentMonth_FirstDay.getFullYear(), currentMonth_FirstDay.getMonth() + 1, 0);
 
-    var initialData = sh_accheck.getDataRange().getValues();
     var rawData = [];
     
-    for (var i = 1; i < initialData.length; i++) {
-      if (initialData[i][SCHEDULE_INDEX.FROM] === "" || initialData[i][SCHEDULE_INDEX.TO] === "" || initialData[i][SCHEDULE_INDEX.TAT] === "") continue;
-      if (initialData[i][SCHEDULE_INDEX.STATION] === "HAN" || initialData[i][SCHEDULE_INDEX.STATION] === "L-HAN") {
-        rawData.push(initialData[i]);
+    for (var i = 1; i < value_schedule.length; i++) {
+      if (value_schedule[i][SCHEDULE_INDEX.FROM] === "" || value_schedule[i][SCHEDULE_INDEX.TO] === "" || value_schedule[i][SCHEDULE_INDEX.TAT] === "") continue;
+      if (value_schedule[i][SCHEDULE_INDEX.STATION] === "HAN" || value_schedule[i][SCHEDULE_INDEX.STATION] === "L-HAN") {
+        rawData.push(value_schedule[i]);
       }
     }
 

@@ -13,7 +13,7 @@ function ccExport() {
     
     // Manage exception
     const SHEET_NAME = currentSheet.getName();
-    if (SHEET_NAME === CONFIG.SHEET_IDS.AC_CHECKS_NAME || SHEET_NAME === "HUONG DAN" || SHEET_NAME === "Personel info") {
+    if (SHEET_NAME === "HUONG DAN" || SHEET_NAME === "Personel info") {
       ui.alert("Chọn tab roster của tháng cần xuất file chấm công!");
       return;
     }
