@@ -129,7 +129,7 @@ function recordUpdateMetadata(sheet) {
   try {
     var email = Session.getActiveUser().getEmail();
     var timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm");
-    var updateText = ` (Updated by ${email} on ${timestamp})`;
+    var updateText = ` (Updated on ${timestamp})`;
     
     var cell = sheet.getRange(CONFIG.ROSTER.UPDATE_INFO_CELL || "B2");
     var currentVal = cell.getValue().toString();
