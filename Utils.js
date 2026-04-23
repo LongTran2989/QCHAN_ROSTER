@@ -97,27 +97,27 @@ function getEmailRecipients() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheetName = CONFIG.SHEET_IDS.EMAILS_SHEET;
   var emailSheet = ss.getSheetByName(sheetName);
-  
+
   if (!emailSheet) {
     emailSheet = ss.insertSheet(sheetName);
     emailSheet.hideSheet();
     emailSheet.getRange("A1").setValue("Email Recipients").setFontWeight("bold");
     return ""; // Return empty string as it's a newly created sheet
   }
-  
+
   var lastRow = emailSheet.getLastRow();
   if (lastRow <= 1) return "";
-  
+
   var emails = emailSheet.getRange(2, 1, lastRow - 1, 1).getValues();
   var recipientList = [];
-  
+
   for (var i = 0; i < emails.length; i++) {
     var email = emails[i][0].toString().trim();
     if (email !== "") {
       recipientList.push(email);
     }
   }
-  
+
   return recipientList.join(", ");
 }
 
@@ -129,17 +129,11 @@ function recordUpdateMetadata(sheet) {
   try {
     var email = Session.getActiveUser().getEmail();
     var timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm");
-    var updateText = ` (Updated on ${timestamp})`;
-    
-    var cell = sheet.getRange(CONFIG.ROSTER.UPDATE_INFO_CELL || "B2");
-    var currentVal = cell.getValue().toString();
-    
-    // Extract just the R[number] part before appending to avoid stacking updates
-    var revMatch = currentVal.match(/R\d+/);
-    var revText = revMatch ? revMatch[0] : "R0";
-    
-    cell.setValue(revText + updateText);
-    
+    var updateText = `Last updated: ${timestamp}`;
+
+    var cell = sheet.getRange(CONFIG.ROSTER.UPDATE_INFO_CELL || "B75");
+    cell.setValue(updateText);
+
     var props = PropertiesService.getDocumentProperties();
     props.setProperty("LAST_UPDATE_INFO", `${email}|${timestamp}`);
   } catch (err) {

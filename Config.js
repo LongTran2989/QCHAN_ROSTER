@@ -20,7 +20,7 @@ const CONFIG = {
     LOWER_ROW: 73,
     LEFT_COL: 3,
     RIGHT_COL: 33,
-    UPDATE_INFO_CELL: "B2"
+    UPDATE_INFO_CELL: "B75"
   },
 
   // Personnel info indexes assuming column mappings
