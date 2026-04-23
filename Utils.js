@@ -120,3 +120,29 @@ function getEmailRecipients() {
   
   return recipientList.join(", ");
 }
+
+/**
+ * Records the last update time and user to PropertiesService and to a designated cell.
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - The sheet to write the timestamp to.
+ */
+function recordUpdateMetadata(sheet) {
+  try {
+    var email = Session.getActiveUser().getEmail();
+    var timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm");
+    var updateText = ` (Updated by ${email} on ${timestamp})`;
+    
+    var cell = sheet.getRange(CONFIG.ROSTER.UPDATE_INFO_CELL || "B2");
+    var currentVal = cell.getValue().toString();
+    
+    // Extract just the R[number] part before appending to avoid stacking updates
+    var revMatch = currentVal.match(/R\d+/);
+    var revText = revMatch ? revMatch[0] : "R0";
+    
+    cell.setValue(revText + updateText);
+    
+    var props = PropertiesService.getDocumentProperties();
+    props.setProperty("LAST_UPDATE_INFO", `${email}|${timestamp}`);
+  } catch (err) {
+    console.error("Failed to record metadata: " + err.message);
+  }
+}

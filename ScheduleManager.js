@@ -200,6 +200,9 @@ function updateACSchedules() {
         if (payload.note) cell.setNote(payload.note);
     }
     
+    // Record who ran this update and when
+    recordUpdateMetadata(currentSheet);
+    
   } catch(err) {
     console.error("Error in updateACSchedules: " + err.message);
     SpreadsheetApp.getUi().alert("Error during schedule fetch: " + err.message);
