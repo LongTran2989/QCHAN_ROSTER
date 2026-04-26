@@ -53,10 +53,7 @@ function updateACSchedules() {
     // Keep user's assigned text in memory during the redraw
     var previousAssignC = getPreviousAssignments(currentSheet);
     
-    if (typeof sortHAN === 'function') {
-      sortHAN();
-      currentSheet.activate();
-    }
+    // Previous sortHAN() macro relied on AC CHECKS. We now sort in memory instead.
 
     var currentMonth_FirstDay = currentSheet.getRange("B1").getValue();
     currentMonth_FirstDay.setHours(0, 0, 0, 0);
@@ -70,11 +67,27 @@ function updateACSchedules() {
         rawData.push(value_schedule[i]);
       }
     }
+    
+    // Sort rawData to mimic the old macro: Primary=AC_TYPE, Secondary=FROM
+    rawData.sort(function(a, b) {
+      if (a[0] < b[0]) return -1;
+      if (a[0] > b[0]) return 1;
+      
+      var dateA = new Date(a[3]).getTime();
+      var dateB = new Date(b[3]).getTime();
+      if (dateA < dateB) return -1;
+      if (dateA > dateB) return 1;
+      
+      return 0;
+    });
 
     var filteredData = [];
     var filteredData_EA = [];
     
     for (var i = 0; i < rawData.length; i++) {
+      rawData[i][SCHEDULE_INDEX.FROM] = new Date(rawData[i][SCHEDULE_INDEX.FROM]);
+      rawData[i][SCHEDULE_INDEX.TO] = new Date(rawData[i][SCHEDULE_INDEX.TO]);
+
       rawData[i][SCHEDULE_INDEX.FROM].setHours(0, 0, 0, 0);
       rawData[i][SCHEDULE_INDEX.TO].setHours(0, 0, 0, 0);
       
