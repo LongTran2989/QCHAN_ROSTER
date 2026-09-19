@@ -20,13 +20,26 @@ const SCHEDULE_INDEX = {
  * @returns {Array<Array<string>>}
  */
 function getPreviousAssignments(currentSheet) {
-  if (currentSheet.getRange("AJ1").getValue() === "") return [];
+  var startRowRaw = currentSheet.getRange("AJ1").getValue();
+  if (startRowRaw === "" || startRowRaw === null) return [];
 
-  var startRow = currentSheet.getRange("AJ1").getValue();
-  var endRow = currentSheet.getRange("AK1").getValue() + startRow;
+  var countRaw = currentSheet.getRange("AK1").getValue();
+  var startRow = Number(startRowRaw);
+  var count = Number(countRaw);
 
-  var name = currentSheet.getRange(startRow, 2, endRow - startRow, 1).getValues();
-  var id = currentSheet.getRange(startRow, 38, endRow - startRow, 1).getValues();
+  if (!Number.isFinite(startRow) || !Number.isFinite(count) || startRow < 1 || count < 0) {
+    throw new Error(
+      "Bookmark cells AJ1/AK1 on '" + currentSheet.getName() + "' don't hold the expected " +
+      "row/count numbers (AJ1=" + JSON.stringify(startRowRaw) + ", AK1=" + JSON.stringify(countRaw) +
+      "). This usually means a row/column was inserted or deleted near column AJ/AK/AL, or " +
+      "those cells were manually edited. Clear AJ1 and AK1 on this sheet and re-run."
+    );
+  }
+
+  if (count === 0) return [];
+
+  var name = currentSheet.getRange(startRow, 2, count, 1).getValues();
+  var id = currentSheet.getRange(startRow, 38, count, 1).getValues();
   
   var rawID = [];
   for (var i = 0; i < id.length; i++){
@@ -56,6 +69,13 @@ function updateACSchedules() {
     // Previous sortHAN() macro relied on AC CHECKS. We now sort in memory instead.
 
     var currentMonth_FirstDay = currentSheet.getRange("B1").getValue();
+    if (!(currentMonth_FirstDay instanceof Date) || isNaN(currentMonth_FirstDay.getTime())) {
+      throw new Error(
+        "Cell B1 on '" + currentSheet.getName() + "' doesn't hold a valid date (got: " +
+        JSON.stringify(currentMonth_FirstDay) + "). Check that B1's format wasn't changed " +
+        "to plain text or cleared."
+      );
+    }
     currentMonth_FirstDay.setHours(0, 0, 0, 0);
     var currentMonth_LastDay = new Date(currentMonth_FirstDay.getFullYear(), currentMonth_FirstDay.getMonth() + 1, 0);
 
