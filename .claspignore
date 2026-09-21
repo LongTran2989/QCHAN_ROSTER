@@ -1,0 +1,10 @@
+**/**
+!*.js
+!*.html
+!appsscript.json
+test/**
+node_modules/**
+.git/**
+package.json
+package-lock.json
+.clasp-test.json

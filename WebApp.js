@@ -23,6 +23,7 @@ function web_getSystemSheetNames_() {
   return [
     CONFIG.SHEET_IDS.ROSTER_TEMPLATE,
     CONFIG.SHEET_IDS.EMAILS_SHEET,
+    CONFIG.SHEET_IDS.CHANGE_LOG_SHEET,
     "CC_TEMP",
     "HUONG DAN",
     "Personel info",

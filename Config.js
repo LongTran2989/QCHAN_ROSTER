@@ -8,9 +8,12 @@ const CONFIG = {
     PUBLIC_ROSTER: "1cC8OJAlAp5TIcXMUj6Pot2zVA_I8voS7qcCI0F7vtZw",
     SCHEDULE: 2119712554,
     ROSTER_TEMPLATE: "ROSTER_TEMPLATE",
-    EMAILS_SHEET: "Email_Config"
+    EMAILS_SHEET: "Email_Config",
+    CHANGE_LOG_SHEET: "Change Log"
   },
-  
+
+  SNAPSHOT_SHEET_PREFIX: "_Snapshot_",
+
   // Layout constraints for the Roster table
   ROSTER: {
     UPPER_ROW: 2,
@@ -20,13 +23,11 @@ const CONFIG = {
     UPDATE_INFO_CELL: "B75"
   },
 
-  // Personnel info indexes assuming column mappings
-  PERSONNEL: {
-    TT: 0,
-    VAECO_ID: 1,
-    NAME: 2,
-    TITLE: 3,
-    PJID: 37 // Using fixed index for compatibility, though we recommend dynamic header search
+  // Source of names for the Assign Personnel sidebar
+  PERSONNEL_SHEET: {
+    NAME: "Personel info",
+    NAME_COL: 2, // column B
+    START_ROW: 2
   },
 
   // Color mapping by Aircraft Type
@@ -40,6 +41,8 @@ const CONFIG = {
     EA_HAN: "#00ff00", // HAN
     BG_SAT_SUN: "gray",
     BG_NULL: "black",
-    WHITE: "white"
+    WHITE: "white",
+    NIGHT_SHIFT_FLAG: "#ff4d4d", // marks the start/end day of a WP needing night-shift coverage
+    CHANGE_HIGHLIGHT: "orange" // border around a WP row that was added/changed this run
   }
 };

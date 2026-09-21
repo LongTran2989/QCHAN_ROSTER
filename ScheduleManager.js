@@ -15,41 +15,6 @@ const SCHEDULE_INDEX = {
 };
 
 /**
- * Reads any user assignments from Column B on the active sheet and backs them up in memory.
- * @param {GoogleAppsScript.Spreadsheet.Sheet} currentSheet 
- * @returns {Array<Array<string>>}
- */
-function getPreviousAssignments(currentSheet) {
-  var startRowRaw = currentSheet.getRange("AJ1").getValue();
-  if (startRowRaw === "" || startRowRaw === null) return [];
-
-  var countRaw = currentSheet.getRange("AK1").getValue();
-  var startRow = Number(startRowRaw);
-  var count = Number(countRaw);
-
-  if (!Number.isFinite(startRow) || !Number.isFinite(count) || startRow < 1 || count < 0) {
-    throw new Error(
-      "Bookmark cells AJ1/AK1 on '" + currentSheet.getName() + "' don't hold the expected " +
-      "row/count numbers (AJ1=" + JSON.stringify(startRowRaw) + ", AK1=" + JSON.stringify(countRaw) +
-      "). This usually means a row/column was inserted or deleted near column AJ/AK/AL, or " +
-      "those cells were manually edited. Clear AJ1 and AK1 on this sheet and re-run."
-    );
-  }
-
-  if (count === 0) return [];
-
-  var name = currentSheet.getRange(startRow, 2, count, 1).getValues();
-  var id = currentSheet.getRange(startRow, 38, count, 1).getValues();
-  
-  var rawID = [];
-  for (var i = 0; i < id.length; i++){
-    rawID.push([id[i][0], name[i][0]]);
-  }
-
-  return rawID;
-}
-
-/**
  * Menu entry point: runs the schedule update and surfaces errors via the Sheets UI.
  */
 function updateACSchedules() {
@@ -74,10 +39,14 @@ function doUpdateACSchedules() {
     var value_schedule = sh_schedule.getDataRange().getValues();
     
     var currentSheet = sp.getActiveSheet();
-    
-    // Keep user's assigned text in memory during the redraw
-    var previousAssignC = getPreviousAssignments(currentSheet);
-    
+
+    // Previous run's WP state (assignments, and a baseline to diff against) lives in a
+    // hidden per-sheet snapshot rather than the old AJ1/AK1 row bookmark.
+    var snapshotSheet = ensureSnapshotSheet(sp, currentSheet.getName());
+    var previousSnapshotRows = readSnapshot(snapshotSheet);
+    var previousByPjid = {};
+    previousSnapshotRows.forEach(function (r) { previousByPjid[r.pjid] = r; });
+
     // Previous sortHAN() macro relied on AC CHECKS. We now sort in memory instead.
 
     var currentMonth_FirstDay = currentSheet.getRange("B1").getValue();
@@ -115,14 +84,24 @@ function doUpdateACSchedules() {
 
     var filteredData = [];
     var filteredData_EA = [];
-    
+    // Source FROM/TO are naive UTC; classifyWP() corrects each to a real Bangkok (UTC+7)
+    // instant and tells us which shift each end falls in. Keyed by row identity since the
+    // row arrays survive the sort/filter below unchanged. See ShiftUtils.js.
+    var shiftInfoByRow = new Map();
+
     for (var i = 0; i < rawData.length; i++) {
-      rawData[i][SCHEDULE_INDEX.FROM] = new Date(rawData[i][SCHEDULE_INDEX.FROM]);
-      rawData[i][SCHEDULE_INDEX.TO] = new Date(rawData[i][SCHEDULE_INDEX.TO]);
+      var rawFromUTC = new Date(rawData[i][SCHEDULE_INDEX.FROM]);
+      var rawToUTC = new Date(rawData[i][SCHEDULE_INDEX.TO]);
+
+      var shiftInfo = classifyWP(rawFromUTC, rawToUTC);
+      shiftInfoByRow.set(rawData[i], shiftInfo);
+
+      rawData[i][SCHEDULE_INDEX.FROM] = new Date(shiftInfo.fromBangkok.getTime());
+      rawData[i][SCHEDULE_INDEX.TO] = new Date(shiftInfo.toBangkok.getTime());
 
       rawData[i][SCHEDULE_INDEX.FROM].setHours(0, 0, 0, 0);
       rawData[i][SCHEDULE_INDEX.TO].setHours(0, 0, 0, 0);
-      
+
       var validData = false;
 
       if (rawData[i][SCHEDULE_INDEX.FROM] >= currentMonth_FirstDay && rawData[i][SCHEDULE_INDEX.FROM] <= currentMonth_LastDay) {
@@ -147,6 +126,34 @@ function doUpdateACSchedules() {
         }
       }
     }
+
+    // Build this run's snapshot rows (Normal + STO + Phase checks) for diffing/persistence.
+    // FROM/TO here are the full Bangkok-corrected instants (pre month-clamping), so a
+    // shift-only change is still detected even when it doesn't move the display day.
+    var newSnapshotRows = filteredData.concat(filteredData_EA).map(function (row) {
+      var info = shiftInfoByRow.get(row);
+      var pjid = row[SCHEDULE_INDEX.PJID] + "";
+      var previous = previousByPjid[pjid];
+      return {
+        pjid: pjid,
+        acReg: row[SCHEDULE_INDEX.AC_REG] + "",
+        acCheck: row[SCHEDULE_INDEX.AC_CHECK] + "",
+        from: info.fromBangkok.getTime(),
+        to: info.toBangkok.getTime(),
+        station: row[SCHEDULE_INDEX.STATION] + "",
+        assignedPerson: previous ? previous.assignedPerson : "",
+        fromDayCol: row[SCHEDULE_INDEX.FROM]
+      };
+    });
+
+    var assignedPersonByPjid = {};
+    newSnapshotRows.forEach(function (r) { assignedPersonByPjid[r.pjid] = r.assignedPerson; });
+
+    var diffResult = diffWPLists(previousSnapshotRows, newSnapshotRows);
+    var highlightedPjids = new Set(
+      diffResult.added.map(function (r) { return r.pjid; })
+        .concat(diffResult.changed.map(function (e) { return e.pjid; }))
+    );
 
     // USER FEEDBACK: Assure clean slate format over drawing area
     var areaToClear = currentSheet.getRange(CONFIG.ROSTER.LOWER_ROW + 3, CONFIG.ROSTER.LEFT_COL - 1, 200, 33 + 7);
@@ -181,8 +188,13 @@ function doUpdateACSchedules() {
         
         var isChk = (filteredData_EA[i][SCHEDULE_INDEX.PJID] + "").indexOf("CHK") !== -1;
         var fontCol = isChk ? "red" : "black";
-        
-        renderPayloads.push({range: [paintRow, paintCol], val: filteredData_EA[i][SCHEDULE_INDEX.AC_CHECK], bg: bgColor, color: fontCol, bold: isChk, note: filteredData_EA[i][SCHEDULE_INDEX.NOTE]});
+
+        var eaShiftInfo = shiftInfoByRow.get(filteredData_EA[i]);
+        var eaLabel = filteredData_EA[i][SCHEDULE_INDEX.AC_CHECK] + (eaShiftInfo ? buildShiftLabelSuffix(eaShiftInfo) : "");
+        var eaNote = (filteredData_EA[i][SCHEDULE_INDEX.NOTE] ? filteredData_EA[i][SCHEDULE_INDEX.NOTE] + "\n\n" : "") + (eaShiftInfo ? buildShiftNote(eaShiftInfo) : "");
+        var eaBg = (eaShiftInfo && eaShiftInfo.nightShiftRequired) ? CONFIG.COLORS.NIGHT_SHIFT_FLAG : bgColor;
+
+        renderPayloads.push({range: [paintRow, paintCol], val: eaLabel, bg: eaBg, color: fontCol, bold: isChk, note: eaNote});
         
         var nsLabel = filteredData_EA[i][SCHEDULE_INDEX.TAT] == "0.5" ? `${filteredData_EA[i][SCHEDULE_INDEX.AC_REG]} NS` : filteredData_EA[i][SCHEDULE_INDEX.AC_REG];
         renderPayloads.push({range: [paintRow + 1, paintCol], val: nsLabel, bg: null, color: null, bold: false});
@@ -193,8 +205,6 @@ function doUpdateACSchedules() {
 
     // --- NORMAL CHECKS LOGIC ---
     var normalCheckStartRow = CONFIG.ROSTER.LOWER_ROW + 3 + eaCheckBlockLength;
-    currentSheet.getRange("AJ1").setValue(normalCheckStartRow);
-    currentSheet.getRange("AK1").setValue(filteredData.length);
 
     var filteredDataNormal = [];
     var filteredDataSTO = [];
@@ -208,14 +218,14 @@ function doUpdateACSchedules() {
     }
 
     renderPayloads.push({range: [normalCheckStartRow - 1, CONFIG.ROSTER.LEFT_COL - 1], val: "NORMAL CHECKS", bg: null, color: null, bold: false});
-    drawChecksBlock(filteredDataNormal, normalCheckStartRow, previousAssignC, renderPayloads);
-    
+    drawChecksBlock(filteredDataNormal, normalCheckStartRow, assignedPersonByPjid, highlightedPjids, renderPayloads, shiftInfoByRow, currentSheet);
+
     var listEndRow = normalCheckStartRow + filteredDataNormal.length + 2;
     renderPayloads.push({range: [listEndRow, 2], val: "END OF LIST", bg: null, color: null, bold: false});
-    
+
     // --- STO CHECKS LOGIC ---
     var stoStartRow = listEndRow + 1;
-    drawChecksBlock(filteredDataSTO, stoStartRow, previousAssignC, renderPayloads);
+    drawChecksBlock(filteredDataSTO, stoStartRow, assignedPersonByPjid, highlightedPjids, renderPayloads, shiftInfoByRow, currentSheet);
 
     // Apply entire batched memory map
     for (var payload of renderPayloads) {
@@ -229,29 +239,45 @@ function doUpdateACSchedules() {
     
     // Record who ran this update and when
     recordUpdateMetadata(currentSheet);
+
+    // Persist this run's state for next time's diff/highlight/assignment-restore.
+    writeSnapshot(snapshotSheet, newSnapshotRows);
+
+    var changeLogRows = buildChangeLogRows(
+      diffResult,
+      Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm"),
+      Session.getActiveUser().getEmail(),
+      currentSheet.getName()
+    );
+    if (changeLogRows.length > 0) {
+      var changeLogSheet = ensureChangeLogSheet(sp);
+      appendChangeLogEntries(changeLogSheet, changeLogRows);
+    }
 }
 
 /**
  * Helper to build Grid payloads for block definitions
  */
-function drawChecksBlock(dataBlock, startRow, previousAssignC, renderQueue) {
+function drawChecksBlock(dataBlock, startRow, assignedPersonByPjid, highlightedPjids, renderQueue, shiftInfoByRow, currentSheet) {
   for (var i = 0; i < dataBlock.length; i++) {
+    var pjid = dataBlock[i][SCHEDULE_INDEX.PJID] + "";
     var acReg = dataBlock[i][SCHEDULE_INDEX.AC_REG];
-    
-    for (var z = 0; z < previousAssignC.length; z++) {
-      if (dataBlock[i][SCHEDULE_INDEX.PJID] == previousAssignC[z][0]) {
-        acReg = previousAssignC[z][1]; break;
-      }
-    }
+    var assignedPerson = assignedPersonByPjid[pjid] || "";
+    var shortName = assignedPerson ? toInitialsWithFirstName(assignedPerson) : "";
+
     renderQueue.push({range: [startRow + i, CONFIG.ROSTER.LEFT_COL - 1], val: acReg});
 
     var isChk = (dataBlock[i][SCHEDULE_INDEX.PJID] + "").indexOf("CHK") !== -1;
     var fCol = isChk ? "red" : "black";
-    
+
+    var shiftInfo = shiftInfoByRow.get(dataBlock[i]);
+    var checkLabel = dataBlock[i][SCHEDULE_INDEX.AC_CHECK] + (shiftInfo ? buildShiftLabelSuffix(shiftInfo) : "") + (shortName ? "\n" + shortName : "");
+    var checkNote = (dataBlock[i][SCHEDULE_INDEX.NOTE] ? dataBlock[i][SCHEDULE_INDEX.NOTE] + "\n\n" : "") + (shiftInfo ? buildShiftNote(shiftInfo) : "");
+
     renderQueue.push({
       range: [startRow + i, CONFIG.ROSTER.LEFT_COL - 1 + dataBlock[i][SCHEDULE_INDEX.FROM]],
-      val: dataBlock[i][SCHEDULE_INDEX.AC_CHECK],
-      note: dataBlock[i][SCHEDULE_INDEX.NOTE],
+      val: checkLabel,
+      note: checkNote,
       color: fCol,
       bold: isChk
     });
@@ -264,10 +290,36 @@ function drawChecksBlock(dataBlock, startRow, previousAssignC, renderQueue) {
       default: barColor = CONFIG.COLORS.DEFAULT; break;
     }
 
-    for (var j = CONFIG.ROSTER.LEFT_COL - 1 + dataBlock[i][SCHEDULE_INDEX.FROM]; j <= CONFIG.ROSTER.LEFT_COL - 1 + dataBlock[i][SCHEDULE_INDEX.TO]; j++) {
+    var fromCol = CONFIG.ROSTER.LEFT_COL - 1 + dataBlock[i][SCHEDULE_INDEX.FROM];
+    var toCol = CONFIG.ROSTER.LEFT_COL - 1 + dataBlock[i][SCHEDULE_INDEX.TO];
+
+    for (var j = fromCol; j <= toCol; j++) {
       renderQueue.push({range: [startRow + i, j], bg: barColor});
     }
 
+    // Tint just the start/end day cells (keeping the AC-type color across the rest of the bar)
+    // when this WP genuinely needs night-shift coverage.
+    if (shiftInfo && shiftInfo.nightShiftRequired) {
+      renderQueue.push({range: [startRow + i, fromCol], bg: CONFIG.COLORS.NIGHT_SHIFT_FLAG});
+      renderQueue.push({range: [startRow + i, toCol], bg: CONFIG.COLORS.NIGHT_SHIFT_FLAG});
+    }
+
+    // Flag rows that are new or changed this run with a border from the AC Reg column
+    // through the end of the bar. Applied directly (not batched) since it spans a range
+    // rather than a single cell; cleared automatically by next run's clearFormat().
+    if (highlightedPjids.has(pjid)) {
+      var highlightStartCol = CONFIG.ROSTER.LEFT_COL - 1;
+      currentSheet.getRange(startRow + i, highlightStartCol, 1, toCol - highlightStartCol + 1)
+        .setBorder(true, true, true, true, false, false, CONFIG.COLORS.CHANGE_HIGHLIGHT, SpreadsheetApp.BorderStyle.SOLID_THICK);
+    }
+
     renderQueue.push({range: [startRow + i, 38], val: dataBlock[i][SCHEDULE_INDEX.PJID]});
+  }
+
+  // Check labels can now carry a second line (the assignee's compact name), so wrap the
+  // label column and let rows grow tall enough to show both lines instead of clipping.
+  if (dataBlock.length > 0) {
+    currentSheet.getRange(startRow, CONFIG.ROSTER.LEFT_COL, dataBlock.length, CONFIG.ROSTER.RIGHT_COL - CONFIG.ROSTER.LEFT_COL + 1).setWrap(true);
+    currentSheet.autoResizeRows(startRow, dataBlock.length);
   }
 }

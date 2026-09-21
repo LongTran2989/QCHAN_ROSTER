@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node test/shiftUtils.test.js && node test/changeTracker.test.js && node test/nameUtils.test.js"
   },
   "keywords": [],
   "author": "",
