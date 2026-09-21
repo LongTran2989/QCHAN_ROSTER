@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node test/shiftUtils.test.js"
+    "test": "node test/shiftUtils.test.js && node test/changeTracker.test.js"
   },
   "keywords": [],
   "author": "",

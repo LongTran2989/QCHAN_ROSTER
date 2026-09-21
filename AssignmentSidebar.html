@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 12px;
+      margin: 0;
+      padding: 8px;
+      color: #202124;
+    }
+    h4 {
+      margin: 0 0 8px 0;
+      font-size: 13px;
+    }
+    #status {
+      margin-bottom: 8px;
+      color: #5f6368;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      text-align: left;
+      padding: 4px 4px;
+      border-bottom: 1px solid #e0e0e0;
+      vertical-align: middle;
+    }
+    th {
+      font-size: 11px;
+      color: #5f6368;
+      font-weight: normal;
+    }
+    select {
+      width: 100%;
+      font-size: 12px;
+    }
+    .ac-reg {
+      font-weight: bold;
+      white-space: nowrap;
+    }
+    .from-display {
+      white-space: nowrap;
+      color: #5f6368;
+    }
+    .row-saving select {
+      opacity: 0.5;
+    }
+    .row-error {
+      background: #fdecea;
+    }
+    #empty {
+      color: #5f6368;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h4 id="sheetName">Assign Personnel</h4>
+  <div id="status">Loading...</div>
+  <div id="empty">No assignable WPs found on this sheet. Run "Update A/C Schedules" first.</div>
+  <table id="wpTable" style="display:none">
+    <thead>
+      <tr>
+        <th>AC Reg</th>
+        <th>Check</th>
+        <th>Start (Bangkok)</th>
+        <th>Assigned</th>
+      </tr>
+    </thead>
+    <tbody id="wpTableBody"></tbody>
+  </table>
+
+  <script>
+    var personnelNames = [];
+
+    function buildSelect(currentValue) {
+      var select = document.createElement("select");
+
+      var blankOption = document.createElement("option");
+      blankOption.value = "";
+      blankOption.textContent = "— Unassigned —";
+      select.appendChild(blankOption);
+
+      personnelNames.forEach(function (name) {
+        var option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        select.appendChild(option);
+      });
+
+      // Keep a stray value (e.g. typed directly on the sheet, not from the list) visible.
+      if (currentValue && personnelNames.indexOf(currentValue) === -1) {
+        var extra = document.createElement("option");
+        extra.value = currentValue;
+        extra.textContent = currentValue + " (not in Personel info)";
+        select.appendChild(extra);
+      }
+
+      select.value = currentValue || "";
+      return select;
+    }
+
+    function onAssignmentChange(pjid, row, select) {
+      row.classList.add("row-saving");
+      row.classList.remove("row-error");
+      google.script.run
+        .withSuccessHandler(function () {
+          row.classList.remove("row-saving");
+        })
+        .withFailureHandler(function (err) {
+          row.classList.remove("row-saving");
+          row.classList.add("row-error");
+          alert("Couldn't save assignment: " + (err && err.message ? err.message : err));
+        })
+        .applyAssignment(pjid, select.value);
+    }
+
+    function render(data) {
+      personnelNames = data.personnel || [];
+      document.getElementById("sheetName").textContent = "Assign Personnel — " + data.sheetName;
+      document.getElementById("status").textContent = data.wps.length + " WP(s)";
+
+      var tbody = document.getElementById("wpTableBody");
+      tbody.innerHTML = "";
+
+      if (data.wps.length === 0) {
+        document.getElementById("empty").style.display = "block";
+        document.getElementById("wpTable").style.display = "none";
+        return;
+      }
+
+      document.getElementById("empty").style.display = "none";
+      document.getElementById("wpTable").style.display = "table";
+
+      data.wps.forEach(function (wp) {
+        var tr = document.createElement("tr");
+
+        var acRegTd = document.createElement("td");
+        acRegTd.className = "ac-reg";
+        acRegTd.textContent = wp.acReg;
+        tr.appendChild(acRegTd);
+
+        var checkTd = document.createElement("td");
+        checkTd.textContent = wp.acCheck;
+        tr.appendChild(checkTd);
+
+        var fromTd = document.createElement("td");
+        fromTd.className = "from-display";
+        fromTd.textContent = wp.fromDisplay;
+        tr.appendChild(fromTd);
+
+        var assignTd = document.createElement("td");
+        var select = buildSelect(wp.assignedPerson);
+        select.addEventListener("change", function () {
+          onAssignmentChange(wp.pjid, tr, select);
+        });
+        assignTd.appendChild(select);
+        tr.appendChild(assignTd);
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    function showError(err) {
+      document.getElementById("status").textContent = "Failed to load: " + (err && err.message ? err.message : err);
+    }
+
+    google.script.run.withSuccessHandler(render).withFailureHandler(showError).getAssignmentSidebarData();
+  </script>
+</body>
+</html>

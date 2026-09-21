@@ -1,5 +1,6 @@
 **/**
 !*.js
+!*.html
 !appsscript.json
 test/**
 node_modules/**
