@@ -17,6 +17,9 @@ var DIFF_FIELDS = ["acReg", "acCheck", "from", "to", "station"];
  * @property {number} to - epoch ms
  * @property {string} station
  * @property {string} assignedPerson
+ * @property {number} fromDayCol - clamped day-of-month used as the label cell's column
+ *   offset this run (CONFIG.ROSTER.LEFT_COL - 1 + fromDayCol). Rendering detail only,
+ *   never compared by diffWPLists.
  */
 
 /**
@@ -111,7 +114,7 @@ function buildAssignmentChangeLogRow(timestamp, user, sheetName, pjid, acReg, ac
 }
 
 var CHANGE_LOG_HEADER = ["Timestamp", "User", "Sheet", "PJID", "AC Reg", "AC Check", "Change Type", "Field", "Old Value", "New Value"];
-var SNAPSHOT_HEADER = ["PJID", "AC Reg", "AC Check", "From", "To", "Station", "AssignedPerson"];
+var SNAPSHOT_HEADER = ["PJID", "AC Reg", "AC Check", "From", "To", "Station", "AssignedPerson", "FromDayCol"];
 
 // --- Sheets-facing I/O below this point ---
 
@@ -151,7 +154,8 @@ function readSnapshot(snapshotSheet) {
       from: Number(v[3]),
       to: Number(v[4]),
       station: v[5] + "",
-      assignedPerson: v[6] + ""
+      assignedPerson: v[6] + "",
+      fromDayCol: Number(v[7])
     });
   }
   return rows;
@@ -170,7 +174,7 @@ function writeSnapshot(snapshotSheet, rows) {
   if (rows.length === 0) return;
 
   var values = rows.map(function (r) {
-    return [r.pjid, r.acReg, r.acCheck, r.from, r.to, r.station, r.assignedPerson || ""];
+    return [r.pjid, r.acReg, r.acCheck, r.from, r.to, r.station, r.assignedPerson || "", r.fromDayCol];
   });
   snapshotSheet.getRange(2, 1, values.length, SNAPSHOT_HEADER.length).setValues(values);
 }

@@ -7,7 +7,7 @@
 /**
  * Scans column 38 (PJID) over the WP-listing area and maps PJID -> current row number.
  * Only Normal/STO rows carry a PJID marker there (Phase Checks don't), so this
- * naturally scopes assignment to the rows that have an Assigned Person column.
+ * naturally scopes assignment to the rows that can carry an assignee.
  * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
  * @returns {Object<string, number>}
  */
@@ -117,7 +117,14 @@ function applyAssignment(pjid, personName) {
   targetRow.assignedPerson = newPerson;
   writeSnapshot(snapshotSheet, snapshotRows);
 
-  currentSheet.getRange(row, CONFIG.ROSTER.LEFT_COL - 2).setValue(newPerson);
+  // The check label lives at "AC_CHECK (shift)[\nShortName]" -- rewrite only the second
+  // line, so this stays correct regardless of what built the first line.
+  var labelCol = CONFIG.ROSTER.LEFT_COL - 1 + targetRow.fromDayCol;
+  var labelCell = currentSheet.getRange(row, labelCol);
+  var firstLine = (labelCell.getValue() + "").split("\n")[0];
+  var shortName = newPerson ? toInitialsWithFirstName(newPerson) : "";
+  labelCell.setValue(shortName ? firstLine + "\n" + shortName : firstLine).setWrap(true);
+  currentSheet.autoResizeRows(row, 1);
 
   if (oldPerson !== newPerson) {
     var changeLogSheet = ensureChangeLogSheet(sp);

@@ -129,7 +129,8 @@ function updateACSchedules() {
         from: info.fromBangkok.getTime(),
         to: info.toBangkok.getTime(),
         station: row[SCHEDULE_INDEX.STATION] + "",
-        assignedPerson: previous ? previous.assignedPerson : ""
+        assignedPerson: previous ? previous.assignedPerson : "",
+        fromDayCol: row[SCHEDULE_INDEX.FROM]
       };
     });
 
@@ -142,9 +143,8 @@ function updateACSchedules() {
         .concat(diffResult.changed.map(function (e) { return e.pjid; }))
     );
 
-    // USER FEEDBACK: Assure clean slate format over drawing area (column A onward, so the
-    // Assigned Person column gets cleared too, not just the AC Reg column rightward).
-    var areaToClear = currentSheet.getRange(CONFIG.ROSTER.LOWER_ROW + 3, CONFIG.ROSTER.LEFT_COL - 2, 200, 33 + 8);
+    // USER FEEDBACK: Assure clean slate format over drawing area
+    var areaToClear = currentSheet.getRange(CONFIG.ROSTER.LOWER_ROW + 3, CONFIG.ROSTER.LEFT_COL - 1, 200, 33 + 7);
     areaToClear.clearContent();
     areaToClear.clearFormat();
     
@@ -256,15 +256,15 @@ function drawChecksBlock(dataBlock, startRow, assignedPersonByPjid, highlightedP
     var pjid = dataBlock[i][SCHEDULE_INDEX.PJID] + "";
     var acReg = dataBlock[i][SCHEDULE_INDEX.AC_REG];
     var assignedPerson = assignedPersonByPjid[pjid] || "";
+    var shortName = assignedPerson ? toInitialsWithFirstName(assignedPerson) : "";
 
-    renderQueue.push({range: [startRow + i, CONFIG.ROSTER.LEFT_COL - 2], val: assignedPerson});
     renderQueue.push({range: [startRow + i, CONFIG.ROSTER.LEFT_COL - 1], val: acReg});
 
     var isChk = (dataBlock[i][SCHEDULE_INDEX.PJID] + "").indexOf("CHK") !== -1;
     var fCol = isChk ? "red" : "black";
 
     var shiftInfo = shiftInfoByRow.get(dataBlock[i]);
-    var checkLabel = dataBlock[i][SCHEDULE_INDEX.AC_CHECK] + (shiftInfo ? buildShiftLabelSuffix(shiftInfo) : "");
+    var checkLabel = dataBlock[i][SCHEDULE_INDEX.AC_CHECK] + (shiftInfo ? buildShiftLabelSuffix(shiftInfo) : "") + (shortName ? "\n" + shortName : "");
     var checkNote = (dataBlock[i][SCHEDULE_INDEX.NOTE] ? dataBlock[i][SCHEDULE_INDEX.NOTE] + "\n\n" : "") + (shiftInfo ? buildShiftNote(shiftInfo) : "");
 
     renderQueue.push({
@@ -297,15 +297,22 @@ function drawChecksBlock(dataBlock, startRow, assignedPersonByPjid, highlightedP
       renderQueue.push({range: [startRow + i, toCol], bg: CONFIG.COLORS.NIGHT_SHIFT_FLAG});
     }
 
-    // Flag rows that are new or changed this run with a border from the Assigned Person
-    // column through the end of the bar. Applied directly (not batched) since it spans a
-    // range rather than a single cell; cleared automatically by next run's clearFormat().
+    // Flag rows that are new or changed this run with a border from the AC Reg column
+    // through the end of the bar. Applied directly (not batched) since it spans a range
+    // rather than a single cell; cleared automatically by next run's clearFormat().
     if (highlightedPjids.has(pjid)) {
-      var highlightStartCol = CONFIG.ROSTER.LEFT_COL - 2;
+      var highlightStartCol = CONFIG.ROSTER.LEFT_COL - 1;
       currentSheet.getRange(startRow + i, highlightStartCol, 1, toCol - highlightStartCol + 1)
         .setBorder(true, true, true, true, false, false, CONFIG.COLORS.CHANGE_HIGHLIGHT, SpreadsheetApp.BorderStyle.SOLID_THICK);
     }
 
     renderQueue.push({range: [startRow + i, 38], val: dataBlock[i][SCHEDULE_INDEX.PJID]});
+  }
+
+  // Check labels can now carry a second line (the assignee's compact name), so wrap the
+  // label column and let rows grow tall enough to show both lines instead of clipping.
+  if (dataBlock.length > 0) {
+    currentSheet.getRange(startRow, CONFIG.ROSTER.LEFT_COL, dataBlock.length, CONFIG.ROSTER.RIGHT_COL - CONFIG.ROSTER.LEFT_COL + 1).setWrap(true);
+    currentSheet.autoResizeRows(startRow, dataBlock.length);
   }
 }
