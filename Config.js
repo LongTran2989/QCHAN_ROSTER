@@ -40,6 +40,7 @@ const CONFIG = {
     EA_HAN: "#00ff00", // HAN
     BG_SAT_SUN: "gray",
     BG_NULL: "black",
-    WHITE: "white"
+    WHITE: "white",
+    NIGHT_SHIFT_FLAG: "#ff4d4d" // marks the start/end day of a WP needing night-shift coverage
   }
 };

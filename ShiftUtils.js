@@ -56,6 +56,52 @@ function classifyWP(fromUTC, toUTC) {
   };
 }
 
+function pad2(n) {
+  return (n < 10 ? "0" : "") + n;
+}
+
+/**
+ * Formats a Bangkok-shifted instant (as produced by toBangkokInstant) as "dd/mm HH:mm".
+ * @param {Date} bangkokInstant
+ * @returns {string}
+ */
+function formatBangkokTime(bangkokInstant) {
+  return pad2(bangkokInstant.getUTCDate()) + "/" + pad2(bangkokInstant.getUTCMonth() + 1) +
+    " " + pad2(bangkokInstant.getUTCHours()) + ":" + pad2(bangkokInstant.getUTCMinutes());
+}
+
+function shiftName(shift) {
+  return shift === SHIFT.EVENING ? "Evening" : "Morning";
+}
+
+/**
+ * Multi-line tooltip text for a WP's start/end, in Bangkok local time.
+ * @param {ReturnType<typeof classifyWP>} shiftInfo
+ * @returns {string}
+ */
+function buildShiftNote(shiftInfo) {
+  var lines = [
+    "Start: " + formatBangkokTime(shiftInfo.fromBangkok) + " (" + shiftName(shiftInfo.fromShift) + " shift, Bangkok time)",
+    "End: " + formatBangkokTime(shiftInfo.toBangkok) + " (" + shiftName(shiftInfo.toShift) + " shift, Bangkok time)"
+  ];
+  if (shiftInfo.nightShiftRequired) {
+    lines.push("⚠ Night shift coverage required");
+  }
+  return lines.join("\n");
+}
+
+/**
+ * Compact suffix appended to a check's label, e.g. " (E)" or " (E N)".
+ * @param {ReturnType<typeof classifyWP>} shiftInfo
+ * @returns {string}
+ */
+function buildShiftLabelSuffix(shiftInfo) {
+  var suffix = " (" + shiftInfo.fromShift;
+  if (shiftInfo.nightShiftRequired) suffix += " N";
+  suffix += ")";
+  return suffix;
+}
+
 // Allow `node test/shiftUtils.test.js` to require() this file, while GAS still sees plain globals.
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
@@ -63,6 +109,9 @@ if (typeof module !== "undefined" && module.exports) {
     BANGKOK_OFFSET_HOURS: BANGKOK_OFFSET_HOURS,
     toBangkokInstant: toBangkokInstant,
     getShiftForBangkokInstant: getShiftForBangkokInstant,
-    classifyWP: classifyWP
+    classifyWP: classifyWP,
+    formatBangkokTime: formatBangkokTime,
+    buildShiftNote: buildShiftNote,
+    buildShiftLabelSuffix: buildShiftLabelSuffix
   };
 }

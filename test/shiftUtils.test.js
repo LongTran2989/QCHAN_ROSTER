@@ -8,6 +8,9 @@ var SHIFT = ShiftUtils.SHIFT;
 var classifyWP = ShiftUtils.classifyWP;
 var getShiftForBangkokInstant = ShiftUtils.getShiftForBangkokInstant;
 var toBangkokInstant = ShiftUtils.toBangkokInstant;
+var formatBangkokTime = ShiftUtils.formatBangkokTime;
+var buildShiftNote = ShiftUtils.buildShiftNote;
+var buildShiftLabelSuffix = ShiftUtils.buildShiftLabelSuffix;
 
 var passed = 0;
 var failed = [];
@@ -97,6 +100,37 @@ test("UTC day-bucketing bug regression: 23:00 UTC start lands on the NEXT Bangko
   assert.strictEqual(r.fromDay, 6);
   assert.strictEqual(r.toDay, 6);
   assert.strictEqual(r.fromShift, SHIFT.MORNING);
+});
+
+// --- formatting helpers ---
+
+test("formatBangkokTime pads day/month/hour/minute to 2 digits", function () {
+  var d = toBangkokInstant(utc("2024-01-05T02:05:00Z")); // + 7h = 09:05 Jan 5
+  assert.strictEqual(formatBangkokTime(d), "05/01 09:05");
+});
+
+test("buildShiftLabelSuffix marks Evening start without night-shift flag", function () {
+  var r = classifyWP(utc("2024-01-05T10:00:00Z"), utc("2024-01-05T12:00:00Z"));
+  assert.strictEqual(buildShiftLabelSuffix(r), " (E)");
+});
+
+test("buildShiftLabelSuffix adds N when night shift coverage is required", function () {
+  var r = classifyWP(utc("2024-01-05T15:00:00Z"), utc("2024-01-05T20:00:00Z"));
+  assert.strictEqual(buildShiftLabelSuffix(r), " (E N)");
+});
+
+test("buildShiftNote includes both times and the night-shift warning when required", function () {
+  var r = classifyWP(utc("2024-01-05T15:00:00Z"), utc("2024-01-05T20:00:00Z"));
+  var note = buildShiftNote(r);
+  assert.ok(note.indexOf("Start: 05/01 22:00 (Evening shift, Bangkok time)") !== -1, note);
+  assert.ok(note.indexOf("End: 06/01 03:00 (Morning shift, Bangkok time)") !== -1, note);
+  assert.ok(note.indexOf("Night shift coverage required") !== -1, note);
+});
+
+test("buildShiftNote omits the warning when night shift isn't required", function () {
+  var r = classifyWP(utc("2024-01-05T10:00:00Z"), utc("2024-01-05T12:00:00Z"));
+  var note = buildShiftNote(r);
+  assert.ok(note.indexOf("Night shift coverage required") === -1, note);
 });
 
 // --- report ---

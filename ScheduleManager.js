@@ -103,14 +103,24 @@ function updateACSchedules() {
 
     var filteredData = [];
     var filteredData_EA = [];
-    
+    // Source FROM/TO are naive UTC; classifyWP() corrects each to a real Bangkok (UTC+7)
+    // instant and tells us which shift each end falls in. Keyed by row identity since the
+    // row arrays survive the sort/filter below unchanged. See ShiftUtils.js.
+    var shiftInfoByRow = new Map();
+
     for (var i = 0; i < rawData.length; i++) {
-      rawData[i][SCHEDULE_INDEX.FROM] = new Date(rawData[i][SCHEDULE_INDEX.FROM]);
-      rawData[i][SCHEDULE_INDEX.TO] = new Date(rawData[i][SCHEDULE_INDEX.TO]);
+      var rawFromUTC = new Date(rawData[i][SCHEDULE_INDEX.FROM]);
+      var rawToUTC = new Date(rawData[i][SCHEDULE_INDEX.TO]);
+
+      var shiftInfo = classifyWP(rawFromUTC, rawToUTC);
+      shiftInfoByRow.set(rawData[i], shiftInfo);
+
+      rawData[i][SCHEDULE_INDEX.FROM] = new Date(shiftInfo.fromBangkok.getTime());
+      rawData[i][SCHEDULE_INDEX.TO] = new Date(shiftInfo.toBangkok.getTime());
 
       rawData[i][SCHEDULE_INDEX.FROM].setHours(0, 0, 0, 0);
       rawData[i][SCHEDULE_INDEX.TO].setHours(0, 0, 0, 0);
-      
+
       var validData = false;
 
       if (rawData[i][SCHEDULE_INDEX.FROM] >= currentMonth_FirstDay && rawData[i][SCHEDULE_INDEX.FROM] <= currentMonth_LastDay) {
@@ -169,8 +179,13 @@ function updateACSchedules() {
         
         var isChk = (filteredData_EA[i][SCHEDULE_INDEX.PJID] + "").indexOf("CHK") !== -1;
         var fontCol = isChk ? "red" : "black";
-        
-        renderPayloads.push({range: [paintRow, paintCol], val: filteredData_EA[i][SCHEDULE_INDEX.AC_CHECK], bg: bgColor, color: fontCol, bold: isChk, note: filteredData_EA[i][SCHEDULE_INDEX.NOTE]});
+
+        var eaShiftInfo = shiftInfoByRow.get(filteredData_EA[i]);
+        var eaLabel = filteredData_EA[i][SCHEDULE_INDEX.AC_CHECK] + (eaShiftInfo ? buildShiftLabelSuffix(eaShiftInfo) : "");
+        var eaNote = (filteredData_EA[i][SCHEDULE_INDEX.NOTE] ? filteredData_EA[i][SCHEDULE_INDEX.NOTE] + "\n\n" : "") + (eaShiftInfo ? buildShiftNote(eaShiftInfo) : "");
+        var eaBg = (eaShiftInfo && eaShiftInfo.nightShiftRequired) ? CONFIG.COLORS.NIGHT_SHIFT_FLAG : bgColor;
+
+        renderPayloads.push({range: [paintRow, paintCol], val: eaLabel, bg: eaBg, color: fontCol, bold: isChk, note: eaNote});
         
         var nsLabel = filteredData_EA[i][SCHEDULE_INDEX.TAT] == "0.5" ? `${filteredData_EA[i][SCHEDULE_INDEX.AC_REG]} NS` : filteredData_EA[i][SCHEDULE_INDEX.AC_REG];
         renderPayloads.push({range: [paintRow + 1, paintCol], val: nsLabel, bg: null, color: null, bold: false});
@@ -196,14 +211,14 @@ function updateACSchedules() {
     }
 
     renderPayloads.push({range: [normalCheckStartRow - 1, CONFIG.ROSTER.LEFT_COL - 1], val: "NORMAL CHECKS", bg: null, color: null, bold: false});
-    drawChecksBlock(filteredDataNormal, normalCheckStartRow, previousAssignC, renderPayloads);
-    
+    drawChecksBlock(filteredDataNormal, normalCheckStartRow, previousAssignC, renderPayloads, shiftInfoByRow);
+
     var listEndRow = normalCheckStartRow + filteredDataNormal.length + 2;
     renderPayloads.push({range: [listEndRow, 2], val: "END OF LIST", bg: null, color: null, bold: false});
-    
+
     // --- STO CHECKS LOGIC ---
     var stoStartRow = listEndRow + 1;
-    drawChecksBlock(filteredDataSTO, stoStartRow, previousAssignC, renderPayloads);
+    drawChecksBlock(filteredDataSTO, stoStartRow, previousAssignC, renderPayloads, shiftInfoByRow);
 
     // Apply entire batched memory map
     for (var payload of renderPayloads) {
@@ -227,10 +242,10 @@ function updateACSchedules() {
 /**
  * Helper to build Grid payloads for block definitions
  */
-function drawChecksBlock(dataBlock, startRow, previousAssignC, renderQueue) {
+function drawChecksBlock(dataBlock, startRow, previousAssignC, renderQueue, shiftInfoByRow) {
   for (var i = 0; i < dataBlock.length; i++) {
     var acReg = dataBlock[i][SCHEDULE_INDEX.AC_REG];
-    
+
     for (var z = 0; z < previousAssignC.length; z++) {
       if (dataBlock[i][SCHEDULE_INDEX.PJID] == previousAssignC[z][0]) {
         acReg = previousAssignC[z][1]; break;
@@ -240,11 +255,15 @@ function drawChecksBlock(dataBlock, startRow, previousAssignC, renderQueue) {
 
     var isChk = (dataBlock[i][SCHEDULE_INDEX.PJID] + "").indexOf("CHK") !== -1;
     var fCol = isChk ? "red" : "black";
-    
+
+    var shiftInfo = shiftInfoByRow.get(dataBlock[i]);
+    var checkLabel = dataBlock[i][SCHEDULE_INDEX.AC_CHECK] + (shiftInfo ? buildShiftLabelSuffix(shiftInfo) : "");
+    var checkNote = (dataBlock[i][SCHEDULE_INDEX.NOTE] ? dataBlock[i][SCHEDULE_INDEX.NOTE] + "\n\n" : "") + (shiftInfo ? buildShiftNote(shiftInfo) : "");
+
     renderQueue.push({
       range: [startRow + i, CONFIG.ROSTER.LEFT_COL - 1 + dataBlock[i][SCHEDULE_INDEX.FROM]],
-      val: dataBlock[i][SCHEDULE_INDEX.AC_CHECK],
-      note: dataBlock[i][SCHEDULE_INDEX.NOTE],
+      val: checkLabel,
+      note: checkNote,
       color: fCol,
       bold: isChk
     });
@@ -257,8 +276,18 @@ function drawChecksBlock(dataBlock, startRow, previousAssignC, renderQueue) {
       default: barColor = CONFIG.COLORS.DEFAULT; break;
     }
 
-    for (var j = CONFIG.ROSTER.LEFT_COL - 1 + dataBlock[i][SCHEDULE_INDEX.FROM]; j <= CONFIG.ROSTER.LEFT_COL - 1 + dataBlock[i][SCHEDULE_INDEX.TO]; j++) {
+    var fromCol = CONFIG.ROSTER.LEFT_COL - 1 + dataBlock[i][SCHEDULE_INDEX.FROM];
+    var toCol = CONFIG.ROSTER.LEFT_COL - 1 + dataBlock[i][SCHEDULE_INDEX.TO];
+
+    for (var j = fromCol; j <= toCol; j++) {
       renderQueue.push({range: [startRow + i, j], bg: barColor});
+    }
+
+    // Tint just the start/end day cells (keeping the AC-type color across the rest of the bar)
+    // when this WP genuinely needs night-shift coverage.
+    if (shiftInfo && shiftInfo.nightShiftRequired) {
+      renderQueue.push({range: [startRow + i, fromCol], bg: CONFIG.COLORS.NIGHT_SHIFT_FLAG});
+      renderQueue.push({range: [startRow + i, toCol], bg: CONFIG.COLORS.NIGHT_SHIFT_FLAG});
     }
 
     renderQueue.push({range: [startRow + i, 38], val: dataBlock[i][SCHEDULE_INDEX.PJID]});
