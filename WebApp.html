@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <style>
+    :root {
+      --bg: #f4f5f7;
+      --card-bg: #ffffff;
+      --text: #1c1e21;
+      --muted: #65676b;
+      --border: #e4e6eb;
+      --accent: #2563eb;
+      --accent-text: #ffffff;
+      --ok-bg: #e7f6ec;
+      --ok-text: #146c2e;
+      --err-bg: #fdecea;
+      --err-text: #b3261e;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #17181a;
+        --card-bg: #232527;
+        --text: #f0f1f3;
+        --muted: #a7a9ac;
+        --border: #35373a;
+        --accent: #4f8dff;
+        --accent-text: #0b1220;
+        --ok-bg: #103a1f;
+        --ok-text: #7fe0a0;
+        --err-bg: #3a1414;
+        --err-text: #ff9a91;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 16px 16px 40px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    h1 {
+      font-size: 20px;
+      margin: 4px 0 2px;
+    }
+    .subtitle {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+    }
+    .card h2 {
+      font-size: 15px;
+      margin: 0 0 4px;
+    }
+    .card p.desc {
+      font-size: 12.5px;
+      color: var(--muted);
+      margin: 0 0 12px;
+    }
+    label {
+      display: block;
+      font-size: 12.5px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    select, input {
+      width: 100%;
+      font-size: 16px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+    }
+    .row > div { flex: 1; }
+    button {
+      width: 100%;
+      font-size: 15px;
+      font-weight: 600;
+      padding: 12px 14px;
+      border-radius: 8px;
+      border: none;
+      background: var(--accent);
+      color: var(--accent-text);
+      cursor: pointer;
+    }
+    button:disabled {
+      opacity: 0.55;
+      cursor: default;
+    }
+    .status {
+      margin-top: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      display: none;
+      word-break: break-word;
+    }
+    .status.ok {
+      display: block;
+      background: var(--ok-bg);
+      color: var(--ok-text);
+    }
+    .status.err {
+      display: block;
+      background: var(--err-bg);
+      color: var(--err-text);
+    }
+    .status a {
+      color: inherit;
+      font-weight: 600;
+    }
+    #sheetBar {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: var(--bg);
+      padding-bottom: 8px;
+    }
+    #sheetBar .status.err { margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <h1>QC HAN Roster</h1>
+  <div class="subtitle">Mobile control panel</div>
+
+  <div id="sheetBar" class="card">
+    <h2>Target roster tab</h2>
+    <p class="desc">Used by Update A/C Schedules, Update Public Roster, Xuất bảng chấm công, and Publish as new revision.</p>
+    <select id="sheetSelect"><option>Loading…</option></select>
+    <div id="sheetStatus" class="status"></div>
+  </div>
+
+  <div class="card">
+    <h2>Create new Roster</h2>
+    <p class="desc">Duplicates the template and fills in the calendar for a month.</p>
+    <div class="row">
+      <div>
+        <label for="month">Month (1-12)</label>
+        <input id="month" type="number" min="1" max="12" inputmode="numeric">
+      </div>
+      <div>
+        <label for="year">Year</label>
+        <input id="year" type="number" min="2022" max="2050" inputmode="numeric">
+      </div>
+    </div>
+    <button id="btnCreate">Create Roster</button>
+    <div id="statusCreate" class="status"></div>
+  </div>
+
+  <div class="card">
+    <h2>Update A/C Schedules</h2>
+    <p class="desc">Pulls the latest aircraft schedule into the selected roster tab.</p>
+    <button id="btnSchedules">Update A/C Schedules</button>
+    <div id="statusSchedules" class="status"></div>
+  </div>
+
+  <div class="card">
+    <h2>Update Public Roster</h2>
+    <p class="desc">Publishes the selected roster tab to the public roster spreadsheet.</p>
+    <button id="btnPublic">Update Public Roster</button>
+    <div id="statusPublic" class="status"></div>
+  </div>
+
+  <div class="card">
+    <h2>Xuất bảng chấm công</h2>
+    <p class="desc">Exports the timesheet for the selected roster tab.</p>
+    <button id="btnCC">Xuất bảng chấm công</button>
+    <div id="statusCC" class="status"></div>
+  </div>
+
+  <div class="card">
+    <h2>Publish as new revision</h2>
+    <p class="desc">Bumps the revision, renames the tab, and emails configured recipients.</p>
+    <button id="btnPublish">Publish as new revision</button>
+    <div id="statusPublish" class="status"></div>
+  </div>
+
+  <script>
+    function showStatus(el, ok, html) {
+      el.className = 'status ' + (ok ? 'ok' : 'err');
+      el.innerHTML = html;
+    }
+
+    function withButton(btn, fn) {
+      return function () {
+        btn.disabled = true;
+        var original = btn.textContent;
+        btn.textContent = 'Working…';
+        fn(function restore() {
+          btn.disabled = false;
+          btn.textContent = original;
+        });
+      };
+    }
+
+    function currentSheetName() {
+      var sel = document.getElementById('sheetSelect');
+      return sel.options.length ? sel.value : '';
+    }
+
+    // --- Load sheet picker ---
+    google.script.run
+      .withSuccessHandler(function (result) {
+        var sel = document.getElementById('sheetSelect');
+        sel.innerHTML = '';
+        result.sheets.forEach(function (name) {
+          var opt = document.createElement('option');
+          opt.value = name;
+          opt.textContent = name;
+          if (name === result.active) opt.selected = true;
+          sel.appendChild(opt);
+        });
+        if (!result.sheets.length) {
+          showStatus(document.getElementById('sheetStatus'), false, 'No roster tabs found.');
+        }
+      })
+      .withFailureHandler(function (err) {
+        showStatus(document.getElementById('sheetStatus'), false, 'Failed to load tabs: ' + err.message);
+      })
+      .web_listSheets();
+
+    // --- Create new Roster ---
+    document.getElementById('btnCreate').addEventListener('click', withButton(
+      document.getElementById('btnCreate'),
+      function (restore) {
+        var statusEl = document.getElementById('statusCreate');
+        var month = document.getElementById('month').value;
+        var year = document.getElementById('year').value;
+        google.script.run
+          .withSuccessHandler(function (msg) { showStatus(statusEl, true, msg); restore(); })
+          .withFailureHandler(function (err) { showStatus(statusEl, false, err.message); restore(); })
+          .web_createNewRoster(month, year);
+      }
+    ));
+
+    // --- Update A/C Schedules ---
+    document.getElementById('btnSchedules').addEventListener('click', withButton(
+      document.getElementById('btnSchedules'),
+      function (restore) {
+        var statusEl = document.getElementById('statusSchedules');
+        google.script.run
+          .withSuccessHandler(function (msg) { showStatus(statusEl, true, msg); restore(); })
+          .withFailureHandler(function (err) { showStatus(statusEl, false, err.message); restore(); })
+          .web_updateACSchedules(currentSheetName());
+      }
+    ));
+
+    // --- Update Public Roster ---
+    document.getElementById('btnPublic').addEventListener('click', withButton(
+      document.getElementById('btnPublic'),
+      function (restore) {
+        var statusEl = document.getElementById('statusPublic');
+        google.script.run
+          .withSuccessHandler(function (url) {
+            showStatus(statusEl, true, 'Published. <a href="' + url + '" target="_blank">Open public roster</a>');
+            restore();
+          })
+          .withFailureHandler(function (err) { showStatus(statusEl, false, err.message); restore(); })
+          .web_updatePublicRoster(currentSheetName());
+      }
+    ));
+
+    // --- Xuất bảng chấm công ---
+    document.getElementById('btnCC').addEventListener('click', withButton(
+      document.getElementById('btnCC'),
+      function (restore) {
+        var statusEl = document.getElementById('statusCC');
+        google.script.run
+          .withSuccessHandler(function (msg) { showStatus(statusEl, true, msg); restore(); })
+          .withFailureHandler(function (err) { showStatus(statusEl, false, err.message); restore(); })
+          .web_ccExport(currentSheetName());
+      }
+    ));
+
+    // --- Publish as new revision ---
+    document.getElementById('btnPublish').addEventListener('click', withButton(
+      document.getElementById('btnPublish'),
+      function (restore) {
+        var statusEl = document.getElementById('statusPublish');
+        google.script.run
+          .withSuccessHandler(function (result) {
+            var msg = 'Published ' + result.newCleanName + (result.emailed ? ' and emailed recipients.' : ' (no email recipients configured).');
+            showStatus(statusEl, true, msg);
+            restore();
+          })
+          .withFailureHandler(function (err) { showStatus(statusEl, false, err.message); restore(); })
+          .web_publishAsNewRevision(currentSheetName());
+      }
+    ));
+  </script>
+</body>
+</html>

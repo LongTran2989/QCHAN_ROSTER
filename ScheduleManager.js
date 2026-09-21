@@ -15,10 +15,22 @@ const SCHEDULE_INDEX = {
 };
 
 /**
- * Fetches external schedule, filters arrays, prepares grid structures and batches them for visual layout rendering.
+ * Menu entry point: runs the schedule update and surfaces errors via the Sheets UI.
  */
 function updateACSchedules() {
   try {
+    doUpdateACSchedules();
+  } catch(err) {
+    console.error("Error in updateACSchedules: " + err.message);
+    SpreadsheetApp.getUi().alert("Error during schedule fetch: " + err.message);
+  }
+}
+
+/**
+ * Fetches external schedule, filters arrays, prepares grid structures and batches them for visual layout rendering.
+ * Contains no UI calls so it can also be driven from the Web App front end.
+ */
+function doUpdateACSchedules() {
     var sp = SpreadsheetApp.getActive();
     
     var sh_schedule = sp.getSheetById(CONFIG.SHEET_IDS.SCHEDULE);
@@ -241,11 +253,6 @@ function updateACSchedules() {
       var changeLogSheet = ensureChangeLogSheet(sp);
       appendChangeLogEntries(changeLogSheet, changeLogRows);
     }
-
-  } catch(err) {
-    console.error("Error in updateACSchedules: " + err.message);
-    SpreadsheetApp.getUi().alert("Error during schedule fetch: " + err.message);
-  }
 }
 
 /**
