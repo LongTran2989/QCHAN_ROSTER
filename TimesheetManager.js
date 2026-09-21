@@ -3,19 +3,29 @@
  */
 
 /**
- * Extracts and processes raw roster data into Timesheet sheets.
+ * Menu entry point: runs the timesheet export and surfaces errors via the Sheets UI.
  */
 function ccExport() {
   try {
+    doCcExport();
+  } catch (err) {
+    console.error("Error in ccExport: " + err.message);
+    SpreadsheetApp.getUi().alert(err.message);
+  }
+}
+
+/**
+ * Extracts and processes raw roster data into Timesheet sheets.
+ * Contains no UI calls so it can also be driven from the Web App front end.
+ */
+function doCcExport() {
     var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
     var currentSheet = spreadsheet.getActiveSheet();
-    var ui = SpreadsheetApp.getUi();
-    
+
     // Manage exception
     const SHEET_NAME = currentSheet.getName();
     if (SHEET_NAME === "HUONG DAN" || SHEET_NAME === "Personel info") {
-      ui.alert("Chọn tab roster của tháng cần xuất file chấm công!");
-      return;
+      throw new Error("Chọn tab roster của tháng cần xuất file chấm công!");
     }
 
     var baseDate = currentSheet.getRange("B1").getValue();
@@ -54,11 +64,6 @@ function ccExport() {
     }
     
     createFormCC(spreadsheet, workDays, arrDate, arrDay, year, month);
-    
-  } catch (err) {
-    console.error("Error in ccExport: " + err.message);
-    SpreadsheetApp.getUi().alert("Error running ccExport: " + err.message);
-  }
 }
 
 /**

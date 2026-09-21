@@ -115,10 +115,23 @@ function setBackgroundColor() {
 }
 
 /**
- * Copies the active Roster grid to a public spreadsheet securely, omitting extraneous rows.
+ * Menu entry point: runs the public roster sync and surfaces errors/success via the Sheets UI.
  */
 function updatePublicRoster() {
   try {
+    doUpdatePublicRoster();
+    showDialog();
+  } catch (err) {
+    console.error("Error in updatePublicRoster: " + err.message);
+    SpreadsheetApp.getUi().alert("Error syncing to Public Roster: " + err.message);
+  }
+}
+
+/**
+ * Copies the active Roster grid to a public spreadsheet securely, omitting extraneous rows.
+ * Contains no UI calls so it can also be driven from the Web App front end.
+ */
+function doUpdatePublicRoster() {
     var public_roster_sp = openSpreadsheetSafe(CONFIG.SHEET_IDS.PUBLIC_ROSTER);
     var active_roster_sp = SpreadsheetApp.getActiveSpreadsheet();
     var active_roster_sh = active_roster_sp.getActiveSheet()
@@ -166,10 +179,4 @@ function updatePublicRoster() {
     range.setBackground(CONFIG.COLORS.WHITE)
     range.setValues(values2)
     public_roster_sh.getRange(2, d + 2, 2, 1).setBackground(CONFIG.COLORS.A320) // Current day highlight
-    
-    showDialog()
-  } catch (err) {
-    console.error("Error in updatePublicRoster: " + err.message);
-    SpreadsheetApp.getUi().alert("Error syncing to Public Roster: " + err.message);
-  }
 }
