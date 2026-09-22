@@ -159,9 +159,12 @@ function doUpdateACSchedules() {
     );
 
     // USER FEEDBACK: Assure clean slate format over drawing area
+    // clearContent()/clearFormat() don't touch cell notes, so a stale tooltip from a WP
+    // that's since moved or disappeared would otherwise linger; setNote("") wipes them too.
     var areaToClear = currentSheet.getRange(CONFIG.ROSTER.LOWER_ROW + 3, CONFIG.ROSTER.LEFT_COL - 1, 200, 33 + 7);
     areaToClear.clearContent();
     areaToClear.clearFormat();
+    areaToClear.setNote("");
     
     // Batch Output Definitions
     var renderPayloads = [];
@@ -195,10 +198,17 @@ function doUpdateACSchedules() {
         var eaShiftInfo = shiftInfoByRow.get(filteredData_EA[i]);
         var eaLabel = filteredData_EA[i][SCHEDULE_INDEX.AC_CHECK] + (eaShiftInfo ? buildShiftLabelSuffix(eaShiftInfo) : "");
         var eaNote = (filteredData_EA[i][SCHEDULE_INDEX.NOTE] ? filteredData_EA[i][SCHEDULE_INDEX.NOTE] + "\n\n" : "") + (eaShiftInfo ? buildShiftNote(eaShiftInfo) : "");
-        var eaBg = (eaShiftInfo && eaShiftInfo.nightShiftRequired) ? CONFIG.COLORS.NIGHT_SHIFT_FLAG : bgColor;
 
-        renderPayloads.push({range: [paintRow, paintCol], val: eaLabel, bg: eaBg, color: fontCol, bold: isChk, note: eaNote});
-        
+        renderPayloads.push({range: [paintRow, paintCol], val: eaLabel, bg: bgColor, color: fontCol, bold: isChk, note: eaNote});
+
+        // Flag night-shift coverage with a border, not a background fill -- a red fill
+        // would collide with CHK-type rows' red font (fontCol above) and make the label
+        // unreadable. Applied directly (batched loop below only sets bg/color/bold/note).
+        if (eaShiftInfo && eaShiftInfo.nightShiftRequired) {
+          currentSheet.getRange(paintRow, paintCol)
+            .setBorder(true, true, true, true, false, false, CONFIG.COLORS.NIGHT_SHIFT_FLAG, SpreadsheetApp.BorderStyle.SOLID_THICK);
+        }
+
         var nsLabel = filteredData_EA[i][SCHEDULE_INDEX.TAT] == "0.5" ? `${filteredData_EA[i][SCHEDULE_INDEX.AC_REG]} NS` : filteredData_EA[i][SCHEDULE_INDEX.AC_REG];
         renderPayloads.push({range: [paintRow + 1, paintCol], val: nsLabel, bg: null, color: null, bold: false});
     }
@@ -300,11 +310,15 @@ function drawChecksBlock(dataBlock, startRow, assignedPersonByPjid, highlightedP
       renderQueue.push({range: [startRow + i, j], bg: barColor});
     }
 
-    // Tint just the start/end day cells (keeping the AC-type color across the rest of the bar)
-    // when this WP genuinely needs night-shift coverage.
+    // Flag just the start/end day cells with a border (keeping the AC-type fill across the
+    // rest of the bar) when this WP genuinely needs night-shift coverage. A background fill
+    // here would collide with CHK-type rows' red label text (fCol above) on the start-day
+    // cell, since that's the same cell the check label is drawn in.
     if (shiftInfo && shiftInfo.nightShiftRequired) {
-      renderQueue.push({range: [startRow + i, fromCol], bg: CONFIG.COLORS.NIGHT_SHIFT_FLAG});
-      renderQueue.push({range: [startRow + i, toCol], bg: CONFIG.COLORS.NIGHT_SHIFT_FLAG});
+      currentSheet.getRange(startRow + i, fromCol)
+        .setBorder(true, true, true, true, false, false, CONFIG.COLORS.NIGHT_SHIFT_FLAG, SpreadsheetApp.BorderStyle.SOLID_THICK);
+      currentSheet.getRange(startRow + i, toCol)
+        .setBorder(true, true, true, true, false, false, CONFIG.COLORS.NIGHT_SHIFT_FLAG, SpreadsheetApp.BorderStyle.SOLID_THICK);
     }
 
     // Flag rows that are new or changed this run with a border from the AC Reg column

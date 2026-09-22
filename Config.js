@@ -52,13 +52,15 @@ const CONFIG = {
     A321: "yellow",
     A350: "#56a9cb",
     B787: "orange",
-    DEFAULT: "#fca8a8",
+    DEFAULT: "#d9d9d9", // was a salmon/light-red -- too close to CHK-type rows' red label text
     EA_LAN: "#00ffff", // L-HAN
     EA_HAN: "#00ff00", // HAN
     BG_SAT_SUN: "gray",
     BG_NULL: "black",
     WHITE: "white",
-    NIGHT_SHIFT_FLAG: "#ff4d4d", // marks the start/end day of a WP needing night-shift coverage
+    // Border color (not a fill) marking a WP that needs night-shift coverage -- must never
+    // be used as a background, since CHK-type rows' label text is also red (see ScheduleManager.js).
+    NIGHT_SHIFT_FLAG: "#ff4d4d",
     CHANGE_HIGHLIGHT: "orange" // border around a WP row that was added/changed this run
   }
 };
