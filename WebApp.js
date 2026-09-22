@@ -9,7 +9,7 @@
  * code) or Deploy > New deployment > Web app (a stable, versioned URL).
  */
 function doGet(e) {
-  return HtmlService.createTemplateFromFile('WebApp')
+  return HtmlService.createTemplateFromFile('WebAppUI')
     .evaluate()
     .setTitle('QC HAN Roster')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
