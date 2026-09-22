@@ -122,8 +122,8 @@ test("buildShiftLabelSuffix adds N when night shift coverage is required", funct
 test("buildShiftNote includes both times and the night-shift warning when required", function () {
   var r = classifyWP(utc("2024-01-05T15:00:00Z"), utc("2024-01-05T20:00:00Z"));
   var note = buildShiftNote(r);
-  assert.ok(note.indexOf("Start: 05/01 22:00 (Evening shift, Bangkok time)") !== -1, note);
-  assert.ok(note.indexOf("End: 06/01 03:00 (Morning shift, Bangkok time)") !== -1, note);
+  assert.ok(note.indexOf("Start: 05/01 22:00 (Evening shift, Hanoi time)") !== -1, note);
+  assert.ok(note.indexOf("End: 06/01 03:00 (Morning shift, Hanoi time)") !== -1, note);
   assert.ok(note.indexOf("Night shift coverage required") !== -1, note);
 });
 

@@ -316,10 +316,9 @@ function drawChecksBlock(dataBlock, startRow, assignedPersonByPjid, highlightedP
     renderQueue.push({range: [startRow + i, 38], val: dataBlock[i][SCHEDULE_INDEX.PJID]});
   }
 
-  // Check labels can now carry a second line (the assignee's compact name), so wrap the
-  // label column and let rows grow tall enough to show both lines instead of clipping.
+  // Check labels can carry a second line (the assignee's compact name). Overflow instead
+  // of wrapping so the extra line doesn't blow out row height across the whole roster grid.
   if (dataBlock.length > 0) {
-    currentSheet.getRange(startRow, CONFIG.ROSTER.LEFT_COL, dataBlock.length, CONFIG.ROSTER.RIGHT_COL - CONFIG.ROSTER.LEFT_COL + 1).setWrap(true);
-    currentSheet.autoResizeRows(startRow, dataBlock.length);
+    currentSheet.getRange(startRow, CONFIG.ROSTER.LEFT_COL, dataBlock.length, CONFIG.ROSTER.RIGHT_COL - CONFIG.ROSTER.LEFT_COL + 1).setWrap(false);
   }
 }

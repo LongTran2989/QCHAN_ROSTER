@@ -75,14 +75,15 @@ function shiftName(shift) {
 }
 
 /**
- * Multi-line tooltip text for a WP's start/end, in Bangkok local time.
+ * Multi-line tooltip text for a WP's start/end, in Hanoi local time (UTC+7, same
+ * offset as the Bangkok math above -- only the displayed label differs).
  * @param {ReturnType<typeof classifyWP>} shiftInfo
  * @returns {string}
  */
 function buildShiftNote(shiftInfo) {
   var lines = [
-    "Start: " + formatBangkokTime(shiftInfo.fromBangkok) + " (" + shiftName(shiftInfo.fromShift) + " shift, Bangkok time)",
-    "End: " + formatBangkokTime(shiftInfo.toBangkok) + " (" + shiftName(shiftInfo.toShift) + " shift, Bangkok time)"
+    "Start: " + formatBangkokTime(shiftInfo.fromBangkok) + " (" + shiftName(shiftInfo.fromShift) + " shift, Hanoi time)",
+    "End: " + formatBangkokTime(shiftInfo.toBangkok) + " (" + shiftName(shiftInfo.toShift) + " shift, Hanoi time)"
   ];
   if (shiftInfo.nightShiftRequired) {
     lines.push("⚠ Night shift coverage required");
