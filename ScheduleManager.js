@@ -35,8 +35,11 @@ function doUpdateACSchedules() {
     
     var sh_schedule = sp.getSheetById(CONFIG.SHEET_IDS.SCHEDULE);
     if (!sh_schedule) throw new Error("Schedule source sheet not found");
-    
-    var value_schedule = sh_schedule.getDataRange().getValues();
+
+    // Rebuilds "AC CHECKS" from the external ops WP sheet on every run (see
+    // ExternalWPImport.js) instead of relying on whatever manual/unknown process
+    // used to keep it in sync -- this is also what gives WPs a real time-of-day.
+    var value_schedule = fetchAndCacheExternalWPRows(sh_schedule);
     
     var currentSheet = sp.getActiveSheet();
 

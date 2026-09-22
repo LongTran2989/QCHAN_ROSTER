@@ -12,6 +12,22 @@ const CONFIG = {
     CHANGE_LOG_SHEET: "Change Log"
   },
 
+  // Source of truth for the AC CHECKS cache: the ops WP tracking spreadsheet.
+  // "AC CHECKS" (SHEET_IDS.SCHEDULE above) is rebuilt from this every update run.
+  EXTERNAL_WP_SOURCE: {
+    SPREADSHEET_ID: "17mJ0MqX5qiSeVRo7Atv0qmWRdsvZqaF2rwxN71bD7sE",
+    TAB_NAME: "RAW"
+  },
+
+  // External sheet's Station codes -> the labels the roster grid filters on.
+  STATION_CODE_MAP: {
+    "NTHN": "HAN",
+    "NGTHN": "L-HAN",
+    "NTHCM": "HCM",
+    "NGTHCM": "L-HCM",
+    "CNDN": "DAD"
+  },
+
   SNAPSHOT_SHEET_PREFIX: "_Snapshot_",
 
   // Layout constraints for the Roster table
