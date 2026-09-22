@@ -112,7 +112,7 @@ function fetchAndCacheExternalWPRows(sh_schedule) {
     ]);
   }
 
-  sh_schedule.clearContent();
+  sh_schedule.clearContents();
   sh_schedule.getRange(1, 1, outRows.length, outRows[0].length).setValues(outRows);
 
   return outRows;
