@@ -1,7 +1,9 @@
 /**
- * Backend for the "Assign Personnel" sidebar: looks up WP rows by PJID (no bookmark,
- * so it stays correct regardless of gaps between the Normal/STO blocks), and applies
- * assignments directly to the sheet + snapshot + change log.
+ * Personnel assignment: editing a WP's check-label cell directly (double-click to edit,
+ * type a name, Enter) is intercepted by onEdit() below, which reverts the raw text and
+ * opens a prompt instead -- then applyAssignment() persists it to the sheet + snapshot +
+ * change log, so it survives the next "Update A/C Schedules" redraw. Rows are looked up
+ * by PJID (no bookmark), so this stays correct regardless of gaps between blocks.
  */
 
 /**
@@ -49,40 +51,6 @@ function getPersonnelNames() {
 }
 
 /**
- * Data for the sidebar: this sheet's assignable WPs (from the snapshot, cross-referenced
- * against which PJIDs currently have a row) plus the personnel dropdown list.
- */
-function getAssignmentSidebarData() {
-  var sp = SpreadsheetApp.getActive();
-  var currentSheet = sp.getActiveSheet();
-
-  var pjidToRow = findWPRowsByPJID(currentSheet);
-  var snapshotSheet = ensureSnapshotSheet(sp, currentSheet.getName());
-  var snapshotByPjid = {};
-  readSnapshot(snapshotSheet).forEach(function (r) { snapshotByPjid[r.pjid] = r; });
-
-  var wps = Object.keys(pjidToRow).map(function (pjid) {
-    var snap = snapshotByPjid[pjid];
-    return {
-      pjid: pjid,
-      acReg: snap ? snap.acReg : "",
-      acCheck: snap ? snap.acCheck : "",
-      fromDisplay: snap ? formatBangkokTime(new Date(snap.from)) : "",
-      sortKey: snap ? snap.from : 0,
-      assignedPerson: snap ? snap.assignedPerson : ""
-    };
-  });
-
-  wps.sort(function (a, b) { return a.sortKey - b.sortKey; });
-
-  return {
-    sheetName: currentSheet.getName(),
-    wps: wps,
-    personnel: getPersonnelNames()
-  };
-}
-
-/**
  * Writes personName as the Assigned Person for the given WP: the live grid cell, the
  * snapshot (so it survives the next redraw), and a Change Log entry if it actually changed.
  * @param {string} pjid
@@ -118,13 +86,14 @@ function applyAssignment(pjid, personName) {
   writeSnapshot(snapshotSheet, snapshotRows);
 
   // The check label lives at "AC_CHECK (shift)[\nShortName]" -- rewrite only the second
-  // line, so this stays correct regardless of what built the first line.
+  // line, so this stays correct regardless of what built the first line. Overflow (not
+  // wrap) to match how ScheduleManager.js renders these labels -- wrapping here would
+  // blow the row back out to full height on every reassignment.
   var labelCol = CONFIG.ROSTER.LEFT_COL - 1 + targetRow.fromDayCol;
   var labelCell = currentSheet.getRange(row, labelCol);
   var firstLine = (labelCell.getValue() + "").split("\n")[0];
   var shortName = newPerson ? toInitialsWithFirstName(newPerson) : "";
-  labelCell.setValue(shortName ? firstLine + "\n" + shortName : firstLine).setWrap(true);
-  currentSheet.autoResizeRows(row, 1);
+  labelCell.setValue(shortName ? firstLine + "\n" + shortName : firstLine).setWrap(false);
 
   if (oldPerson !== newPerson) {
     var changeLogSheet = ensureChangeLogSheet(sp);
@@ -139,9 +108,56 @@ function applyAssignment(pjid, personName) {
 }
 
 /**
- * Opens the Assign Personnel sidebar. Wired to the QC HAN menu in Main.js.
+ * Simple onEdit trigger (auto-recognized by Apps Script, no manual trigger setup
+ * needed). Editing a WP's check-label cell directly -- double-click, type, Enter --
+ * reverts that raw text (the label is derived, not meant to be hand-typed) and opens
+ * a prompt to set the assignee instead, going through applyAssignment() above so it's
+ * persisted the same way a menu-driven assignment always was.
  */
-function showAssignmentSidebar() {
-  var html = HtmlService.createHtmlOutputFromFile("AssignmentSidebar").setTitle("Assign Personnel");
-  SpreadsheetApp.getUi().showSidebar(html);
+function onEdit(e) {
+  var range = e.range;
+  if (range.getNumRows() !== 1 || range.getNumColumns() !== 1) return; // ignore paste/fill
+
+  var sheet = range.getSheet();
+  var sheetName = sheet.getName();
+  if (web_getSystemSheetNames_().indexOf(sheetName) !== -1 ||
+      sheetName.indexOf(CONFIG.SNAPSHOT_SHEET_PREFIX) === 0) {
+    return;
+  }
+
+  var row = range.getRow();
+  var col = range.getColumn();
+  if (row < CONFIG.ROSTER.LOWER_ROW + 3 || col < CONFIG.ROSTER.LEFT_COL || col > CONFIG.ROSTER.RIGHT_COL) return;
+
+  var pjid = (sheet.getRange(row, 38).getValue() + "").trim();
+  if (pjid === "") return; // not an assignable WP row (e.g. a Phase Check, or blank space)
+
+  // Restore the pre-edit text -- applyAssignment() reads the label's first line back
+  // out of the cell, so it needs to see the real "AC_CHECK (shift)" text, not whatever
+  // was just typed.
+  range.setValue(e.oldValue !== undefined ? e.oldValue : range.getValue());
+
+  var acCheck = "";
+  try {
+    var snapshotRows = readSnapshot(ensureSnapshotSheet(sheet.getParent(), sheetName));
+    for (var i = 0; i < snapshotRows.length; i++) {
+      if (snapshotRows[i].pjid === pjid) { acCheck = snapshotRows[i].acCheck; break; }
+    }
+  } catch (err) {
+    // Non-fatal -- the prompt just won't show the check name.
+  }
+
+  var ui = SpreadsheetApp.getUi();
+  var result = ui.prompt(
+    "Assign Personnel",
+    "PJID " + pjid + (acCheck ? " (" + acCheck + ")" : "") + "\nEnter personnel name (leave blank to unassign):",
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (result.getSelectedButton() !== ui.Button.OK) return;
+
+  try {
+    applyAssignment(pjid, result.getResponseText().trim());
+  } catch (err) {
+    ui.alert("Couldn't save assignment: " + err.message);
+  }
 }
