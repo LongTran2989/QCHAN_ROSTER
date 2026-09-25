@@ -69,7 +69,7 @@ function getAssignmentSidebarData() {
       acCheck: snap ? snap.acCheck : "",
       fromDisplay: snap ? formatBangkokTime(new Date(snap.from)) : "",
       sortKey: snap ? snap.from : 0,
-      assignedPerson: snap ? snap.assignedPerson : ""
+      assignedPeople: snap ? splitAssignedPeople(snap.assignedPerson) : []
     };
   });
 
@@ -83,12 +83,13 @@ function getAssignmentSidebarData() {
 }
 
 /**
- * Writes personName as the Assigned Person for the given WP: the live grid cell, the
+ * Writes personNames as the Assigned Person(s) for the given WP: the live grid cell, the
  * snapshot (so it survives the next redraw), and a Change Log entry if it actually changed.
  * @param {string} pjid
- * @param {string} personName - "" to unassign.
+ * @param {string[]} personNames - [] to unassign. Selected from the Personel info list only,
+ *   so this never has to reject a mistyped name.
  */
-function applyAssignment(pjid, personName) {
+function applyAssignment(pjid, personNames) {
   var sp = SpreadsheetApp.getActive();
   var currentSheet = sp.getActiveSheet();
 
@@ -113,17 +114,19 @@ function applyAssignment(pjid, personName) {
   }
 
   var oldPerson = targetRow.assignedPerson || "";
-  var newPerson = personName || "";
+  var newPeople = splitAssignedPeople((personNames || []).join(","));
+  var newPerson = joinAssignedPeople(newPeople);
   targetRow.assignedPerson = newPerson;
   writeSnapshot(snapshotSheet, snapshotRows);
 
-  // The check label lives at "AC_CHECK (shift)[\nShortName]" -- rewrite only the second
-  // line, so this stays correct regardless of what built the first line.
+  // The check label lives at "AC_CHECK (shift)[\nShortNames]" -- rewrite only the second
+  // line, so this stays correct regardless of what built the first line. Multiple assignees
+  // are appended to that line, comma-separated.
   var labelCol = CONFIG.ROSTER.LEFT_COL - 1 + targetRow.fromDayCol;
   var labelCell = currentSheet.getRange(row, labelCol);
   var firstLine = (labelCell.getValue() + "").split("\n")[0];
-  var shortName = newPerson ? toInitialsWithFirstName(newPerson) : "";
-  labelCell.setValue(shortName ? firstLine + "\n" + shortName : firstLine).setWrap(true);
+  var shortNames = newPeople.length ? formatAssignedShortNames(newPeople) : "";
+  labelCell.setValue(shortNames ? firstLine + "\n" + shortNames : firstLine).setWrap(true);
   currentSheet.autoResizeRows(row, 1);
 
   if (oldPerson !== newPerson) {
@@ -135,7 +138,7 @@ function applyAssignment(pjid, personName) {
     ]);
   }
 
-  return { pjid: pjid, assignedPerson: newPerson };
+  return { pjid: pjid, assignedPeople: newPeople };
 }
 
 /**

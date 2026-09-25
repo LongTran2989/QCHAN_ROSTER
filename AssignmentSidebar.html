@@ -33,10 +33,6 @@
       color: #5f6368;
       font-weight: normal;
     }
-    select {
-      width: 100%;
-      font-size: 12px;
-    }
     .ac-reg {
       font-weight: bold;
       white-space: nowrap;
@@ -45,7 +41,7 @@
       white-space: nowrap;
       color: #5f6368;
     }
-    .row-saving select {
+    .row-saving .assign-summary {
       opacity: 0.5;
     }
     .row-error {
@@ -54,6 +50,46 @@
     #empty {
       color: #5f6368;
       display: none;
+    }
+    .assign-summary {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: none;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      padding: 3px 6px;
+      font-size: 12px;
+      color: #202124;
+      cursor: pointer;
+    }
+    .assign-summary.unassigned {
+      color: #5f6368;
+      font-style: italic;
+    }
+    .assign-panel {
+      display: none;
+      margin-top: 4px;
+      max-height: 140px;
+      overflow-y: auto;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      padding: 4px 6px;
+      background: #fafafa;
+    }
+    .assign-panel.open {
+      display: block;
+    }
+    .assign-panel label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 0;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .assign-panel input {
+      margin: 0;
     }
   </style>
 </head>
@@ -76,46 +112,84 @@
   <script>
     var personnelNames = [];
 
-    function buildSelect(currentValue) {
-      var select = document.createElement("select");
-
-      var blankOption = document.createElement("option");
-      blankOption.value = "";
-      blankOption.textContent = "— Unassigned —";
-      select.appendChild(blankOption);
-
-      personnelNames.forEach(function (name) {
-        var option = document.createElement("option");
-        option.value = name;
-        option.textContent = name;
-        select.appendChild(option);
-      });
-
-      // Keep a stray value (e.g. typed directly on the sheet, not from the list) visible.
-      if (currentValue && personnelNames.indexOf(currentValue) === -1) {
-        var extra = document.createElement("option");
-        extra.value = currentValue;
-        extra.textContent = currentValue + " (not in Personel info)";
-        select.appendChild(extra);
-      }
-
-      select.value = currentValue || "";
-      return select;
+    function summaryText(names) {
+      return names.length ? names.join(", ") : "— Unassigned — (tap to assign)";
     }
 
-    function onAssignmentChange(pjid, row, select) {
+    // Builds the "current assignees" button plus its checkbox panel (all closed by default).
+    // Selection is always from the Personel info list, so there's nothing to type or mistype.
+    function buildAssignCell(pjid, assignedPeople) {
+      var wrapper = document.createElement("div");
+
+      var summary = document.createElement("button");
+      summary.type = "button";
+      summary.className = "assign-summary" + (assignedPeople.length ? "" : " unassigned");
+      summary.textContent = summaryText(assignedPeople);
+      wrapper.appendChild(summary);
+
+      var panel = document.createElement("div");
+      panel.className = "assign-panel";
+
+      personnelNames.forEach(function (name) {
+        var label = document.createElement("label");
+        var checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = name;
+        checkbox.checked = assignedPeople.indexOf(name) !== -1;
+        checkbox.addEventListener("change", function () {
+          onAssignmentChange(pjid, wrapper, summary, panel);
+        });
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(name));
+        panel.appendChild(label);
+      });
+
+      // Keep any stray legacy value (e.g. typed directly on the sheet before this existed,
+      // or not in the Personel info sheet) visible and selected, even though it can't be
+      // re-checked from this list.
+      assignedPeople.forEach(function (name) {
+        if (personnelNames.indexOf(name) === -1) {
+          var extraLabel = document.createElement("label");
+          var extraCheckbox = document.createElement("input");
+          extraCheckbox.type = "checkbox";
+          extraCheckbox.value = name;
+          extraCheckbox.checked = true;
+          extraCheckbox.addEventListener("change", function () {
+            onAssignmentChange(pjid, wrapper, summary, panel);
+          });
+          extraLabel.appendChild(extraCheckbox);
+          extraLabel.appendChild(document.createTextNode(name + " (not in Personel info)"));
+          panel.appendChild(extraLabel);
+        }
+      });
+
+      summary.addEventListener("click", function () {
+        panel.classList.toggle("open");
+      });
+
+      wrapper.appendChild(panel);
+      return wrapper;
+    }
+
+    function onAssignmentChange(pjid, row, summary, panel) {
+      var checkedNames = Array.prototype.slice.call(panel.querySelectorAll("input:checked")).map(function (cb) {
+        return cb.value;
+      });
+
       row.classList.add("row-saving");
       row.classList.remove("row-error");
       google.script.run
-        .withSuccessHandler(function () {
+        .withSuccessHandler(function (result) {
           row.classList.remove("row-saving");
+          summary.textContent = summaryText(result.assignedPeople);
+          summary.classList.toggle("unassigned", result.assignedPeople.length === 0);
         })
         .withFailureHandler(function (err) {
           row.classList.remove("row-saving");
           row.classList.add("row-error");
           alert("Couldn't save assignment: " + (err && err.message ? err.message : err));
         })
-        .applyAssignment(pjid, select.value);
+        .applyAssignment(pjid, checkedNames);
     }
 
     function render(data) {
@@ -153,11 +227,7 @@
         tr.appendChild(fromTd);
 
         var assignTd = document.createElement("td");
-        var select = buildSelect(wp.assignedPerson);
-        select.addEventListener("change", function () {
-          onAssignmentChange(wp.pjid, tr, select);
-        });
-        assignTd.appendChild(select);
+        assignTd.appendChild(buildAssignCell(wp.pjid, wp.assignedPeople || []));
         tr.appendChild(assignTd);
 
         tbody.appendChild(tr);

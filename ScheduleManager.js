@@ -262,8 +262,8 @@ function drawChecksBlock(dataBlock, startRow, assignedPersonByPjid, highlightedP
   for (var i = 0; i < dataBlock.length; i++) {
     var pjid = dataBlock[i][SCHEDULE_INDEX.PJID] + "";
     var acReg = dataBlock[i][SCHEDULE_INDEX.AC_REG];
-    var assignedPerson = assignedPersonByPjid[pjid] || "";
-    var shortName = assignedPerson ? toInitialsWithFirstName(assignedPerson) : "";
+    var assignedPeople = splitAssignedPeople(assignedPersonByPjid[pjid] || "");
+    var shortName = assignedPeople.length ? formatAssignedShortNames(assignedPeople) : "";
 
     renderQueue.push({range: [startRow + i, CONFIG.ROSTER.LEFT_COL - 1], val: acReg});
 

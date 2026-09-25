@@ -120,3 +120,27 @@ function web_publishAsNewRevision(sheetName) {
   web_setActiveSheet_(sheetName);
   return doPublishAsNewRevision();
 }
+
+/**
+ * Web App version of the "Assign Personnel" sidebar's data load. The desktop sidebar reads
+ * SpreadsheetApp.getActive().getActiveSheet() directly; here the picked sheet has to be made
+ * active first since there's no live UI selection on a phone.
+ * @param {string} sheetName
+ * @returns {{sheetName: string, wps: Array, personnel: string[]}}
+ */
+function web_getAssignmentSidebarData(sheetName) {
+  web_setActiveSheet_(sheetName);
+  return getAssignmentSidebarData();
+}
+
+/**
+ * Web App version of applyAssignment().
+ * @param {string} sheetName
+ * @param {string} pjid
+ * @param {string[]} personNames
+ * @returns {{pjid: string, assignedPeople: string[]}}
+ */
+function web_applyAssignment(sheetName, pjid, personNames) {
+  web_setActiveSheet_(sheetName);
+  return applyAssignment(pjid, personNames);
+}

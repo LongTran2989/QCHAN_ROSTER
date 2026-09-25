@@ -131,6 +131,59 @@
       padding-bottom: 8px;
     }
     #sheetBar .status.err { margin-top: 6px; }
+    .wp-item {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      margin-bottom: 8px;
+    }
+    .wp-item.saving { opacity: 0.6; }
+    .wp-item.error { border-color: var(--err-text); }
+    .wp-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .wp-head .ac-reg { font-weight: 600; }
+    .wp-head .wp-from { color: var(--muted); font-size: 12px; white-space: nowrap; }
+    .assign-summary {
+      display: block;
+      width: 100%;
+      text-align: left;
+      font-size: 14px;
+      font-weight: 400;
+      padding: 10px 12px;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .assign-summary.unassigned {
+      color: var(--muted);
+      font-style: italic;
+    }
+    .assign-panel {
+      display: none;
+      margin-top: 6px;
+      max-height: 220px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 4px 10px;
+    }
+    .assign-panel.open { display: block; }
+    .assign-panel label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      font-size: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .assign-panel label:last-child { border-bottom: none; }
+    .assign-panel input { width: auto; margin: 0; }
   </style>
 </head>
 <body>
@@ -139,7 +192,7 @@
 
   <div id="sheetBar" class="card">
     <h2>Target roster tab</h2>
-    <p class="desc">Used by Update A/C Schedules, Update Public Roster, Xuất bảng chấm công, and Publish as new revision.</p>
+    <p class="desc">Used by Update A/C Schedules, Assign Personnel, Update Public Roster, Xuất bảng chấm công, and Publish as new revision.</p>
     <select id="sheetSelect"><option>Loading…</option></select>
     <div id="sheetStatus" class="status"></div>
   </div>
@@ -166,6 +219,14 @@
     <p class="desc">Pulls the latest aircraft schedule into the selected roster tab.</p>
     <button id="btnSchedules">Update A/C Schedules</button>
     <div id="statusSchedules" class="status"></div>
+  </div>
+
+  <div class="card">
+    <h2>Assign Personnel</h2>
+    <p class="desc">Pick who's assigned to each WP on the selected roster tab. Selection only, from the Personel info list -- nothing to type.</p>
+    <button id="btnLoadAssignments">Load WPs</button>
+    <div id="statusAssign" class="status"></div>
+    <div id="assignList"></div>
   </div>
 
   <div class="card">
@@ -256,6 +317,121 @@
           .withSuccessHandler(function (msg) { showStatus(statusEl, true, msg); restore(); })
           .withFailureHandler(function (err) { showStatus(statusEl, false, err.message); restore(); })
           .web_updateACSchedules(currentSheetName());
+      }
+    ));
+
+    // --- Assign Personnel ---
+    var assignPersonnelNames = [];
+
+    function assignSummaryText(names) {
+      return names.length ? names.join(', ') : '— Unassigned — (tap to assign)';
+    }
+
+    function buildAssignPanel(sheetName, pjid, item, summary, assignedPeople) {
+      var panel = document.createElement('div');
+      panel.className = 'assign-panel';
+
+      function onToggle() {
+        var checkedNames = Array.prototype.slice.call(panel.querySelectorAll('input:checked')).map(function (cb) {
+          return cb.value;
+        });
+        item.classList.add('saving');
+        item.classList.remove('error');
+        google.script.run
+          .withSuccessHandler(function (result) {
+            item.classList.remove('saving');
+            summary.textContent = assignSummaryText(result.assignedPeople);
+            summary.classList.toggle('unassigned', result.assignedPeople.length === 0);
+          })
+          .withFailureHandler(function (err) {
+            item.classList.remove('saving');
+            item.classList.add('error');
+            alert("Couldn't save assignment: " + (err && err.message ? err.message : err));
+          })
+          .web_applyAssignment(sheetName, pjid, checkedNames);
+      }
+
+      assignPersonnelNames.forEach(function (name) {
+        var label = document.createElement('label');
+        var checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = name;
+        checkbox.checked = assignedPeople.indexOf(name) !== -1;
+        checkbox.addEventListener('change', onToggle);
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(name));
+        panel.appendChild(label);
+      });
+
+      assignedPeople.forEach(function (name) {
+        if (assignPersonnelNames.indexOf(name) === -1) {
+          var extraLabel = document.createElement('label');
+          var extraCheckbox = document.createElement('input');
+          extraCheckbox.type = 'checkbox';
+          extraCheckbox.value = name;
+          extraCheckbox.checked = true;
+          extraCheckbox.addEventListener('change', onToggle);
+          extraLabel.appendChild(extraCheckbox);
+          extraLabel.appendChild(document.createTextNode(name + ' (not in Personel info)'));
+          panel.appendChild(extraLabel);
+        }
+      });
+
+      return panel;
+    }
+
+    function renderAssignments(data) {
+      assignPersonnelNames = data.personnel || [];
+      var list = document.getElementById('assignList');
+      list.innerHTML = '';
+
+      if (!data.wps.length) {
+        showStatus(document.getElementById('statusAssign'), false, 'No assignable WPs found. Run "Update A/C Schedules" first.');
+        return;
+      }
+      showStatus(document.getElementById('statusAssign'), true, data.wps.length + ' WP(s) on ' + data.sheetName + '.');
+
+      data.wps.forEach(function (wp) {
+        var item = document.createElement('div');
+        item.className = 'wp-item';
+
+        var head = document.createElement('div');
+        head.className = 'wp-head';
+        var acReg = document.createElement('span');
+        acReg.className = 'ac-reg';
+        acReg.textContent = wp.acReg + ' — ' + wp.acCheck;
+        var from = document.createElement('span');
+        from.className = 'wp-from';
+        from.textContent = wp.fromDisplay;
+        head.appendChild(acReg);
+        head.appendChild(from);
+        item.appendChild(head);
+
+        var assignedPeople = wp.assignedPeople || [];
+        var summary = document.createElement('button');
+        summary.type = 'button';
+        summary.className = 'assign-summary' + (assignedPeople.length ? '' : ' unassigned');
+        summary.textContent = assignSummaryText(assignedPeople);
+        item.appendChild(summary);
+
+        var panel = buildAssignPanel(data.sheetName, wp.pjid, item, summary, assignedPeople);
+        summary.addEventListener('click', function () {
+          panel.classList.toggle('open');
+        });
+        item.appendChild(panel);
+
+        list.appendChild(item);
+      });
+    }
+
+    document.getElementById('btnLoadAssignments').addEventListener('click', withButton(
+      document.getElementById('btnLoadAssignments'),
+      function (restore) {
+        var statusEl = document.getElementById('statusAssign');
+        google.script.run
+          .withSuccessHandler(function (data) { renderAssignments(data); restore(); })
+          .withFailureHandler(function (err) { showStatus(statusEl, false, 'Failed to load: ' + err.message); restore(); })
+          .web_getAssignmentSidebarData(currentSheetName());
       }
     ));
 
