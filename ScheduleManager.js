@@ -212,21 +212,25 @@ function runUpdateACSchedules() {
         var bgColor = isHank ? CONFIG.COLORS.EA_LAN : CONFIG.COLORS.EA_HAN;
         
         var isChk = (filteredData_EA[i][SCHEDULE_INDEX.PJID] + "").indexOf("CHK") !== -1;
-        var fontCol = isChk ? "red" : "black";
 
         var eaShiftInfo = shiftInfoByRow.get(filteredData_EA[i]);
-        var eaLabel = filteredData_EA[i][SCHEDULE_INDEX.AC_CHECK] + (eaShiftInfo ? buildShiftLabelSuffix(eaShiftInfo) : "");
+        var eaLabel = buildCheckLabel({acCheck: filteredData_EA[i][SCHEDULE_INDEX.AC_CHECK], isChk: isChk, shiftInfo: eaShiftInfo});
         var eaNote = (filteredData_EA[i][SCHEDULE_INDEX.NOTE] ? filteredData_EA[i][SCHEDULE_INDEX.NOTE] + "\n\n" : "") + (eaShiftInfo ? buildShiftNote(eaShiftInfo) : "");
-        var eaBg = (eaShiftInfo && eaShiftInfo.nightShiftRequired) ? CONFIG.COLORS.NIGHT_SHIFT_FLAG : bgColor;
+        var eaNight = !!(eaShiftInfo && eaShiftInfo.nightShiftRequired);
+        var eaBg = eaNight ? CONFIG.COLORS.NIGHT_SHIFT_FLAG : bgColor;
 
-        renderPayloads.push({range: [paintRow, paintCol], val: eaLabel, bg: eaBg, color: fontCol, bold: isChk, note: eaNote});
+        // Font is derived from the fill so the label is always legible (never red-on-red).
+        renderPayloads.push({range: [paintRow, paintCol], val: eaLabel, bg: eaBg, color: pickFontColor(eaBg), bold: isChk || eaNight, note: eaNote});
         
         var nsLabel = filteredData_EA[i][SCHEDULE_INDEX.TAT] == "0.5" ? `${filteredData_EA[i][SCHEDULE_INDEX.AC_REG]} NS` : filteredData_EA[i][SCHEDULE_INDEX.AC_REG];
         renderPayloads.push({range: [paintRow + 1, paintCol], val: nsLabel, bg: null, color: null, bold: false});
     }
 
     eaCheckBlockLength += 5;
-    currentSheet.getRange(eaStartRow, CONFIG.ROSTER.LEFT_COL, Math.max(1, eaCheckBlockLength - 2), 33).setWrap(true).setVerticalAlignment("top");
+    // Phase labels sit in a single day cell: clip (full text is in the cell note) and keep rows fixed-height.
+    var eaBlockRows = Math.max(1, eaCheckBlockLength - 2);
+    currentSheet.getRange(eaStartRow, CONFIG.ROSTER.LEFT_COL, eaBlockRows, 33).setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP).setVerticalAlignment("top");
+    currentSheet.setRowHeights(eaStartRow, eaBlockRows, CONFIG.LAYOUT.ROW_HEIGHT);
 
     // --- NORMAL CHECKS LOGIC ---
     var normalCheckStartRow = CONFIG.ROSTER.LOWER_ROW + 3 + eaCheckBlockLength;
@@ -293,27 +297,29 @@ function drawChecksBlock(dataBlock, startRow, assignedPersonByPjid, highlightedP
     renderQueue.push({range: [startRow + i, CONFIG.ROSTER.LEFT_COL - 1], val: acReg});
 
     var isChk = (dataBlock[i][SCHEDULE_INDEX.PJID] + "").indexOf("CHK") !== -1;
-    var fCol = isChk ? "red" : "black";
 
     var shiftInfo = shiftInfoByRow.get(dataBlock[i]);
-    var checkLabel = dataBlock[i][SCHEDULE_INDEX.AC_CHECK] + (shiftInfo ? buildShiftLabelSuffix(shiftInfo) : "") + (shortName ? "\n" + shortName : "");
+    var style = resolveCheckStyle({
+      acType: dataBlock[i][SCHEDULE_INDEX.AC_TYPE],
+      isChk: isChk,
+      nightShiftRequired: !!(shiftInfo && shiftInfo.nightShiftRequired),
+      assigned: !!assignedPerson,
+      changed: highlightedPjids.has(pjid)
+    }, CONFIG.COLORS);
+    var barColor = style.barColor;
+
+    // Single-line label (assignee inline) so short-TAT rows keep the fixed row height.
+    var checkLabel = buildCheckLabel({acCheck: dataBlock[i][SCHEDULE_INDEX.AC_CHECK], isChk: isChk, shiftInfo: shiftInfo, assigneeShort: shortName});
     var checkNote = (dataBlock[i][SCHEDULE_INDEX.NOTE] ? dataBlock[i][SCHEDULE_INDEX.NOTE] + "\n\n" : "") + (shiftInfo ? buildShiftNote(shiftInfo) : "");
 
+    // Font color comes from the label cell's final fill (night red or bar color), never red text.
     renderQueue.push({
       range: [startRow + i, CONFIG.ROSTER.LEFT_COL - 1 + dataBlock[i][SCHEDULE_INDEX.FROM]],
       val: checkLabel,
       note: checkNote,
-      color: fCol,
-      bold: isChk
+      color: style.labelFont,
+      bold: style.bold
     });
-
-    var barColor;
-    switch(dataBlock[i][SCHEDULE_INDEX.AC_TYPE]) {
-      case "A320": case "A321": barColor = CONFIG.COLORS.A320; break;
-      case "A350": barColor = CONFIG.COLORS.A350; break;
-      case "B787": barColor = CONFIG.COLORS.B787; break;
-      default: barColor = CONFIG.COLORS.DEFAULT; break;
-    }
 
     var fromCol = CONFIG.ROSTER.LEFT_COL - 1 + dataBlock[i][SCHEDULE_INDEX.FROM];
     var toCol = CONFIG.ROSTER.LEFT_COL - 1 + dataBlock[i][SCHEDULE_INDEX.TO];
@@ -329,30 +335,24 @@ function drawChecksBlock(dataBlock, startRow, assignedPersonByPjid, highlightedP
       renderQueue.push({range: [startRow + i, toCol], bg: CONFIG.COLORS.NIGHT_SHIFT_FLAG});
     }
 
-    // Flag rows that are new or changed this run with a border from the AC Reg column
-    // through the end of the bar. Applied directly (not batched) since it spans a range
-    // rather than a single cell; cleared automatically by next run's clearFormat().
-    if (highlightedPjids.has(pjid)) {
-      var highlightStartCol = CONFIG.ROSTER.LEFT_COL - 1;
-      currentSheet.getRange(startRow + i, highlightStartCol, 1, toCol - highlightStartCol + 1)
-        .setBorder(true, true, true, true, false, false, CONFIG.COLORS.CHANGE_HIGHLIGHT, SpreadsheetApp.BorderStyle.SOLID_THICK);
+    // Row-level border from the AC Reg column through the end of the bar: solid thick purple when
+    // new/changed this run, dashed dark gray when unassigned (changed wins; see resolveCheckStyle).
+    // Applied directly (not batched) since it spans a range; cleared by next run's clearFormat().
+    if (style.border) {
+      var borderStartCol = CONFIG.ROSTER.LEFT_COL - 1;
+      currentSheet.getRange(startRow + i, borderStartCol, 1, toCol - borderStartCol + 1)
+        .setBorder(true, true, true, true, false, false, style.border.color, SpreadsheetApp.BorderStyle[style.border.style]);
     }
 
     renderQueue.push({range: [startRow + i, 38], val: dataBlock[i][SCHEDULE_INDEX.PJID]});
   }
 
-  // Check labels can now carry a second line (the assignee's compact name), so wrap the
-  // label column and let rows grow tall enough to show both lines instead of clipping.
+  // Labels are single-line and overflow across the (empty) bar cells to the right; rows keep a
+  // fixed height so a long label on a short-TAT check never makes the row tall.
   if (dataBlock.length > 0) {
-    currentSheet.getRange(startRow, CONFIG.ROSTER.LEFT_COL, dataBlock.length, CONFIG.ROSTER.RIGHT_COL - CONFIG.ROSTER.LEFT_COL + 1).setWrap(true);
-    // Long checks (TAT > 2 days) paint a wide bar: leave the label unwrapped so the WP Desc.
-    // runs across the painted cells instead of being squeezed into the first day's cell.
-    for (var w = 0; w < dataBlock.length; w++) {
-      if (Number(dataBlock[w][SCHEDULE_INDEX.TAT]) > 2) {
-        currentSheet.getRange(startRow + w, CONFIG.ROSTER.LEFT_COL - 1 + dataBlock[w][SCHEDULE_INDEX.FROM]).setWrap(false);
-      }
-    }
-    currentSheet.autoResizeRows(startRow, dataBlock.length);
+    currentSheet.getRange(startRow, CONFIG.ROSTER.LEFT_COL, dataBlock.length, CONFIG.ROSTER.RIGHT_COL - CONFIG.ROSTER.LEFT_COL + 1)
+      .setWrapStrategy(SpreadsheetApp.WrapStrategy.OVERFLOW);
+    currentSheet.setRowHeights(startRow, dataBlock.length, CONFIG.LAYOUT.ROW_HEIGHT);
   }
 }
 
