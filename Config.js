@@ -48,19 +48,30 @@ const CONFIG = {
     START_ROW: 2
   },
 
-  // Color mapping by Aircraft Type
+  // Color mapping. All hex so ScheduleStyle.js can compute contrast (WCAG >= 4.5:1, enforced by
+  // test/scheduleStyle.test.js). Pastel fills take black text; NIGHT_SHIFT_FLAG takes white text.
   COLORS: {
-    A320: "yellow",
-    A321: "yellow",
-    A350: "#56a9cb",
-    B787: "orange",
-    DEFAULT: "#fca8a8",
-    EA_LAN: "#00ffff", // L-HAN
-    EA_HAN: "#00ff00", // HAN
+    A320: "#FFF59D",
+    A321: "#FFF59D",
+    A350: "#81D4FA",
+    B787: "#FFCC80",
+    DEFAULT: "#CE93D8",
+    EA_LAN: "#80DEEA", // L-HAN
+    EA_HAN: "#A5D6A7", // HAN
     BG_SAT_SUN: "gray",
     BG_NULL: "black",
     WHITE: "white",
-    NIGHT_SHIFT_FLAG: "#ff4d4d", // marks the start/end day of a WP needing night-shift coverage
-    CHANGE_HIGHLIGHT: "orange" // border around a WP row that was added/changed this run
+    NIGHT_SHIFT_FLAG: "#EF9A9A", // start/end day of a WP needing night-shift coverage (light red: black text stays legible when the label overflows onto neighbouring cells)
+    CHANGE_HIGHLIGHT: "#6A1B9A", // border around a WP row that was added/changed this run
+    UNASSIGNED_BORDER: "#424242" // dashed border around a WP row with no assignee
+  },
+
+  // Fixed row height (px) for schedule rows so long labels never make short checks tall
+  LAYOUT: {
+    ROW_HEIGHT: 21
   }
 };
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { CONFIG: CONFIG };
+}

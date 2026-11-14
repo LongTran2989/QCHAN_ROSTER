@@ -117,14 +117,13 @@ function applyAssignment(pjid, personName) {
   targetRow.assignedPerson = newPerson;
   writeSnapshot(snapshotSheet, snapshotRows);
 
-  // The check label lives at "AC_CHECK (shift)[\nShortName]" -- rewrite only the second
-  // line, so this stays correct regardless of what built the first line.
+  // The check label lives at "[star ]AC_CHECK[ moon][ middot ShortName]".
   var labelCol = CONFIG.ROSTER.LEFT_COL - 1 + targetRow.fromDayCol;
   var labelCell = currentSheet.getRange(row, labelCol);
-  var firstLine = (labelCell.getValue() + "").split("\n")[0];
   var shortName = newPerson ? toInitialsWithFirstName(newPerson) : "";
-  labelCell.setValue(shortName ? firstLine + "\n" + shortName : firstLine).setWrap(true);
-  currentSheet.autoResizeRows(row, 1);
+  // Single-line label: rewrite only the " · Name" part; keep the row at its fixed height.
+  labelCell.setValue(setLabelAssignee(labelCell.getValue() + "", shortName)).setWrapStrategy(SpreadsheetApp.WrapStrategy.OVERFLOW);
+  currentSheet.setRowHeights(row, 1, CONFIG.LAYOUT.ROW_HEIGHT);
 
   if (oldPerson !== newPerson) {
     var changeLogSheet = ensureChangeLogSheet(sp);

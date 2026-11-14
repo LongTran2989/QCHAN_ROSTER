@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node test/shiftUtils.test.js && node test/changeTracker.test.js && node test/nameUtils.test.js && node test/externalSource.test.js"
+    "test": "node test/shiftUtils.test.js && node test/changeTracker.test.js && node test/nameUtils.test.js && node test/externalSource.test.js && node test/scheduleStyle.test.js"
   },
   "keywords": [],
   "author": "",

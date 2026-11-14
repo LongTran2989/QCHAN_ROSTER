@@ -11,6 +11,8 @@ var toBangkokInstant = ShiftUtils.toBangkokInstant;
 var formatBangkokTime = ShiftUtils.formatBangkokTime;
 var buildShiftNote = ShiftUtils.buildShiftNote;
 var buildShiftLabelSuffix = ShiftUtils.buildShiftLabelSuffix;
+var buildCheckLabel = ShiftUtils.buildCheckLabel;
+var setLabelAssignee = ShiftUtils.setLabelAssignee;
 
 var passed = 0;
 var failed = [];
@@ -109,14 +111,38 @@ test("formatBangkokTime pads day/month/hour/minute to 2 digits", function () {
   assert.strictEqual(formatBangkokTime(d), "05/01 09:05");
 });
 
-test("buildShiftLabelSuffix marks Evening start without night-shift flag", function () {
+test("buildShiftLabelSuffix is empty for an Evening start without night shift", function () {
   var r = classifyWP(utc("2024-01-05T10:00:00Z"), utc("2024-01-05T12:00:00Z"));
-  assert.strictEqual(buildShiftLabelSuffix(r), " (E)");
+  assert.strictEqual(buildShiftLabelSuffix(r), "");
 });
 
-test("buildShiftLabelSuffix adds N when night shift coverage is required", function () {
+test("buildShiftLabelSuffix is empty for a Morning start", function () {
+  var r = classifyWP(utc("2024-01-05T00:00:00Z"), utc("2024-01-05T02:00:00Z"));
+  assert.strictEqual(buildShiftLabelSuffix(r), "");
+});
+
+test("buildShiftLabelSuffix is a moon when night shift coverage is required", function () {
   var r = classifyWP(utc("2024-01-05T15:00:00Z"), utc("2024-01-05T20:00:00Z"));
-  assert.strictEqual(buildShiftLabelSuffix(r), " (E N)");
+  assert.strictEqual(buildShiftLabelSuffix(r), " 🌙");
+});
+
+test("buildShiftLabelSuffix is null-safe", function () {
+  assert.strictEqual(buildShiftLabelSuffix(null), "");
+  assert.strictEqual(buildShiftLabelSuffix(undefined), "");
+});
+
+test("buildCheckLabel combines star, check, moon and assignee on one line", function () {
+  var label = buildCheckLabel({ acCheck: "4C", isChk: true, shiftInfo: { nightShiftRequired: true }, assigneeShort: "Nguyen T." });
+  assert.strictEqual(label, "★ 4C 🌙 · Nguyen T.");
+});
+
+test("buildCheckLabel is just the check when plain", function () {
+  assert.strictEqual(buildCheckLabel({ acCheck: "4C", isChk: false, shiftInfo: null }), "4C");
+});
+
+test("buildCheckLabel never contains a newline", function () {
+  var label = buildCheckLabel({ acCheck: "4C\nLONG", isChk: false, shiftInfo: null, assigneeShort: "A\nB" });
+  assert.ok(label.indexOf("\n") === -1, JSON.stringify(label));
 });
 
 test("buildShiftNote includes both times and the night-shift warning when required", function () {
@@ -131,6 +157,24 @@ test("buildShiftNote omits the warning when night shift isn't required", functio
   var r = classifyWP(utc("2024-01-05T10:00:00Z"), utc("2024-01-05T12:00:00Z"));
   var note = buildShiftNote(r);
   assert.ok(note.indexOf("Night shift coverage required") === -1, note);
+});
+
+test("setLabelAssignee appends the assignee to an unassigned label", function () {
+  assert.strictEqual(setLabelAssignee("★ 4C 🌙", "Tran B."), "★ 4C 🌙 · Tran B.");
+});
+
+test("setLabelAssignee replaces an existing assignee", function () {
+  assert.strictEqual(setLabelAssignee("4C · Nguyen T.", "Tran B."), "4C · Tran B.");
+});
+
+test("setLabelAssignee with empty name removes the assignee", function () {
+  assert.strictEqual(setLabelAssignee("4C · Nguyen T.", ""), "4C");
+});
+
+test("setLabelAssignee output never contains a newline, even for a legacy two-line label", function () {
+  var out = setLabelAssignee("4C\nNguyen T.", "Tran B.");
+  assert.ok(out.indexOf("\n") === -1, JSON.stringify(out));
+  assert.strictEqual(out, "4C · Tran B.");
 });
 
 // --- report ---
