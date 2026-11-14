@@ -12,6 +12,7 @@ var formatBangkokTime = ShiftUtils.formatBangkokTime;
 var buildShiftNote = ShiftUtils.buildShiftNote;
 var buildShiftLabelSuffix = ShiftUtils.buildShiftLabelSuffix;
 var buildCheckLabel = ShiftUtils.buildCheckLabel;
+var setLabelAssignee = ShiftUtils.setLabelAssignee;
 
 var passed = 0;
 var failed = [];
@@ -156,6 +157,24 @@ test("buildShiftNote omits the warning when night shift isn't required", functio
   var r = classifyWP(utc("2024-01-05T10:00:00Z"), utc("2024-01-05T12:00:00Z"));
   var note = buildShiftNote(r);
   assert.ok(note.indexOf("Night shift coverage required") === -1, note);
+});
+
+test("setLabelAssignee appends the assignee to an unassigned label", function () {
+  assert.strictEqual(setLabelAssignee("★ 4C 🌙", "Tran B."), "★ 4C 🌙 · Tran B.");
+});
+
+test("setLabelAssignee replaces an existing assignee", function () {
+  assert.strictEqual(setLabelAssignee("4C · Nguyen T.", "Tran B."), "4C · Tran B.");
+});
+
+test("setLabelAssignee with empty name removes the assignee", function () {
+  assert.strictEqual(setLabelAssignee("4C · Nguyen T.", ""), "4C");
+});
+
+test("setLabelAssignee output never contains a newline, even for a legacy two-line label", function () {
+  var out = setLabelAssignee("4C\nNguyen T.", "Tran B.");
+  assert.ok(out.indexOf("\n") === -1, JSON.stringify(out));
+  assert.strictEqual(out, "4C · Tran B.");
 });
 
 // --- report ---

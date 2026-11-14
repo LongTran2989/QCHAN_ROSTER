@@ -61,7 +61,7 @@ const CONFIG = {
     BG_SAT_SUN: "gray",
     BG_NULL: "black",
     WHITE: "white",
-    NIGHT_SHIFT_FLAG: "#B71C1C", // start/end day of a WP needing night-shift coverage (white text)
+    NIGHT_SHIFT_FLAG: "#EF9A9A", // start/end day of a WP needing night-shift coverage (light red: black text stays legible when the label overflows onto neighbouring cells)
     CHANGE_HIGHLIGHT: "#6A1B9A", // border around a WP row that was added/changed this run
     UNASSIGNED_BORDER: "#424242" // dashed border around a WP row with no assignee
   },

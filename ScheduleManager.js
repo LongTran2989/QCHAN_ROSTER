@@ -226,7 +226,8 @@ function runUpdateACSchedules() {
         renderPayloads.push({range: [paintRow, paintCol], val: eaLabel, bg: eaBg, color: pickFontColor(eaBg), bold: isChk || eaNight, note: eaNote});
         
         var nsLabel = filteredData_EA[i][SCHEDULE_INDEX.TAT] == "0.5" ? `${filteredData_EA[i][SCHEDULE_INDEX.AC_REG]} NS` : filteredData_EA[i][SCHEDULE_INDEX.AC_REG];
-        renderPayloads.push({range: [paintRow + 1, paintCol], val: nsLabel, bg: null, color: null, bold: false});
+        // The reg cell is clipped like the label above it, so carry the full text in a note too.
+        renderPayloads.push({range: [paintRow + 1, paintCol], val: nsLabel, bg: null, color: null, bold: false, note: nsLabel + ""});
     }
 
     eaCheckBlockLength += 5;
@@ -250,14 +251,22 @@ function runUpdateACSchedules() {
     }
 
     renderPayloads.push({range: [normalCheckStartRow - 1, CONFIG.ROSTER.LEFT_COL - 1], val: "NORMAL CHECKS", bg: null, color: null, bold: false});
-    drawChecksBlock(filteredDataNormal, normalCheckStartRow, assignedPersonByPjid, highlightedPjids, renderPayloads, shiftInfoByRow, currentSheet);
+    var borderOps = [];
+    drawChecksBlock(filteredDataNormal, normalCheckStartRow, assignedPersonByPjid, highlightedPjids, renderPayloads, shiftInfoByRow, currentSheet, borderOps);
 
     var listEndRow = normalCheckStartRow + filteredDataNormal.length + 2;
     renderPayloads.push({range: [listEndRow, 2], val: "END OF LIST", bg: null, color: null, bold: false});
 
     // --- STO CHECKS LOGIC ---
     var stoStartRow = listEndRow + 1;
-    drawChecksBlock(filteredDataSTO, stoStartRow, assignedPersonByPjid, highlightedPjids, renderPayloads, shiftInfoByRow, currentSheet);
+    drawChecksBlock(filteredDataSTO, stoStartRow, assignedPersonByPjid, highlightedPjids, renderPayloads, shiftInfoByRow, currentSheet, borderOps);
+
+    // Dashed (unassigned) first, solid thick (changed) last so a changed row's box is never overdrawn
+    // by a neighbouring unassigned row's shared edge.
+    orderBorders(borderOps).forEach(function (op) {
+      currentSheet.getRange(op.row, op.col, 1, op.width)
+        .setBorder(true, true, true, true, false, false, op.border.color, SpreadsheetApp.BorderStyle[op.border.style]);
+    });
 
     // Apply entire batched memory map
     for (var payload of renderPayloads) {
@@ -309,7 +318,7 @@ function drawLegend(sheet, row, startCol) {
 /**
  * Helper to build Grid payloads for block definitions
  */
-function drawChecksBlock(dataBlock, startRow, assignedPersonByPjid, highlightedPjids, renderQueue, shiftInfoByRow, currentSheet) {
+function drawChecksBlock(dataBlock, startRow, assignedPersonByPjid, highlightedPjids, renderQueue, shiftInfoByRow, currentSheet, borderOps) {
   for (var i = 0; i < dataBlock.length; i++) {
     var pjid = dataBlock[i][SCHEDULE_INDEX.PJID] + "";
     var acReg = dataBlock[i][SCHEDULE_INDEX.AC_REG];
@@ -359,11 +368,12 @@ function drawChecksBlock(dataBlock, startRow, assignedPersonByPjid, highlightedP
 
     // Row-level border from the AC Reg column through the end of the bar: solid thick purple when
     // new/changed this run, dashed dark gray when unassigned (changed wins; see resolveCheckStyle).
-    // Applied directly (not batched) since it spans a range; cleared by next run's clearFormat().
+    // Queued (not applied here): adjacent rows share a grid line and the last setBorder wins it, so
+    // the caller applies all dashed borders first and the changed (solid) boxes last (orderBorders).
+    // Cleared by next run's clearFormat().
     if (style.border) {
       var borderStartCol = CONFIG.ROSTER.LEFT_COL - 1;
-      currentSheet.getRange(startRow + i, borderStartCol, 1, toCol - borderStartCol + 1)
-        .setBorder(true, true, true, true, false, false, style.border.color, SpreadsheetApp.BorderStyle[style.border.style]);
+      borderOps.push({row: startRow + i, col: borderStartCol, width: toCol - borderStartCol + 1, border: style.border});
     }
 
     renderQueue.push({range: [startRow + i, 38], val: dataBlock[i][SCHEDULE_INDEX.PJID]});

@@ -113,6 +113,20 @@ function buildCheckLabel(opts) {
   return label;
 }
 
+/**
+ * Rewrites the assignee part of an existing check label (the text after " · "), keeping the
+ * rest. Legacy two-line labels are reduced to their first line. Empty name removes the assignee.
+ * @param {string} label
+ * @param {string} shortName
+ * @returns {string} single-line label
+ */
+function setLabelAssignee(label, shortName) {
+  var base = String(label == null ? "" : label).split(/\r?\n/)[0];
+  var idx = base.indexOf(" · ");
+  if (idx >= 0) base = base.slice(0, idx);
+  return shortName ? base + " · " + shortName : base;
+}
+
 // Allow `node test/shiftUtils.test.js` to require() this file, while GAS still sees plain globals.
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
@@ -124,6 +138,7 @@ if (typeof module !== "undefined" && module.exports) {
     formatBangkokTime: formatBangkokTime,
     buildShiftNote: buildShiftNote,
     buildShiftLabelSuffix: buildShiftLabelSuffix,
-    buildCheckLabel: buildCheckLabel
+    buildCheckLabel: buildCheckLabel,
+    setLabelAssignee: setLabelAssignee
   };
 }

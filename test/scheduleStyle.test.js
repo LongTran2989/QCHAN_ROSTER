@@ -18,7 +18,7 @@ function test(name, fn) {
   }
 }
 
-var PASTEL_KEYS = ["A320", "A350", "B787", "DEFAULT", "EA_LAN", "EA_HAN"];
+var PASTEL_KEYS = ["A320", "A350", "B787", "DEFAULT", "EA_LAN", "EA_HAN", "NIGHT_SHIFT_FLAG"];
 var FILL_KEYS = PASTEL_KEYS.concat(["NIGHT_SHIFT_FLAG"]);
 var HEX = /^#[0-9A-Fa-f]{6}$/;
 
@@ -69,10 +69,10 @@ function style(over) {
   return Style.resolveCheckStyle(base, COLORS);
 }
 
-test("resolveCheckStyle: CHK + night is white bold on dark red", function () {
+test("resolveCheckStyle: CHK + night is black bold on light red", function () {
   var s = style({ isChk: true, nightShiftRequired: true });
-  assert.strictEqual(s.labelBg, "#B71C1C");
-  assert.strictEqual(s.labelFont, "#FFFFFF");
+  assert.strictEqual(s.labelBg, "#EF9A9A");
+  assert.strictEqual(s.labelFont, "#000000");
   assert.strictEqual(s.bold, true);
 });
 
@@ -129,10 +129,10 @@ test("buildLegendEntries: first four fills are the aircraft-type palette", funct
   assert.deepStrictEqual(bgs, [COLORS.A320, COLORS.A350, COLORS.B787, COLORS.DEFAULT]);
 });
 
-test("buildLegendEntries: night entry is white on the night red", function () {
+test("buildLegendEntries: night entry is black on the night red", function () {
   var night = Style.buildLegendEntries(COLORS)[4];
   assert.strictEqual(night.bg, COLORS.NIGHT_SHIFT_FLAG);
-  assert.strictEqual(night.font, "#FFFFFF");
+  assert.strictEqual(night.font, "#000000");
 });
 
 test("buildLegendEntries: every entry has >= 4.5:1 font contrast", function () {
@@ -147,6 +147,31 @@ test("buildLegendEntries: CHK entry uses black text; border entries carry their 
   assert.strictEqual(entries[5].font, "#000000");
   assert.strictEqual(entries[6].border, COLORS.UNASSIGNED_BORDER);
   assert.strictEqual(entries[7].border, COLORS.CHANGE_HIGHLIGHT);
+});
+
+// Review finding: label text overflows past its own cell, so the font must also be legible on
+// every bar color and on plain white, not just on the label cell's own fill.
+["A320", "A350", "B787", "DEFAULT"].forEach(function (key) {
+  test("night label font stays legible over spilled " + key + " bar cells", function () {
+    var s = style({ nightShiftRequired: true });
+    assert.ok(Style.contrastRatio(COLORS[key], s.labelFont) >= 4.5, key);
+  });
+});
+
+test("night label font stays legible over plain white cells", function () {
+  assert.ok(Style.contrastRatio("#FFFFFF", style({ nightShiftRequired: true }).labelFont) >= 4.5);
+});
+
+test("orderBorders puts SOLID_THICK borders after DASHED ones, preserving relative order", function () {
+  var ops = [
+    { row: 1, border: { style: "SOLID_THICK" } },
+    { row: 2, border: { style: "DASHED" } },
+    { row: 3, border: { style: "SOLID_THICK" } },
+    { row: 4, border: { style: "DASHED" } }
+  ];
+  var ordered = Style.orderBorders(ops).map(function (o) { return o.row; });
+  assert.deepStrictEqual(ordered, [2, 4, 1, 3]);
+  assert.deepStrictEqual(ops.map(function (o) { return o.row; }), [1, 2, 3, 4], "input must not be mutated");
 });
 
 // --- report ---

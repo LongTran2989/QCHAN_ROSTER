@@ -93,6 +93,19 @@ function buildLegendEntries(colors) {
   ];
 }
 
+/**
+ * Orders border operations so SOLID_THICK ones are applied after DASHED ones. Adjacent rows share a
+ * grid line, and the later setBorder call wins that line, so "changed" boxes must be drawn last.
+ * Stable; does not mutate the input.
+ * @param {Array<{border: {style: string}}>} ops
+ * @returns {Array}
+ */
+function orderBorders(ops) {
+  var dashed = ops.filter(function (o) { return o.border.style !== "SOLID_THICK"; });
+  var solid = ops.filter(function (o) { return o.border.style === "SOLID_THICK"; });
+  return dashed.concat(solid);
+}
+
 // Allow `node test/scheduleStyle.test.js` to require() this file, while GAS still sees plain globals.
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
@@ -100,6 +113,7 @@ if (typeof module !== "undefined" && module.exports) {
     contrastRatio: contrastRatio,
     pickFontColor: pickFontColor,
     resolveCheckStyle: resolveCheckStyle,
-    buildLegendEntries: buildLegendEntries
+    buildLegendEntries: buildLegendEntries,
+    orderBorders: orderBorders
   };
 }
