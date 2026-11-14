@@ -25,8 +25,12 @@ function fetchExternalXlsxBlob() {
   var code = resp.getResponseCode();
   var bytes = resp.getContent();
   if (code !== 200 || !looksLikeXlsx(bytes)) {
-    throw new Error("External source download failed (HTTP " + code + "). " +
-      "The link may no longer be public ('Anyone with the link') or has expired.");
+    // Show what came back instead of a generic message: a 200 with a non-xlsx body usually
+    // means SharePoint returned an HTML sign-in or viewer page.
+    var type = resp.getHeaders()["Content-Type"] || resp.getHeaders()["content-type"] || "unknown";
+    var snippet = resp.getContentText().replace(/\s+/g, " ").slice(0, 200);
+    throw new Error("External source download failed (HTTP " + code + ", type " + type + "), " +
+      "not an .xlsx file. Body starts with: " + snippet);
   }
   return resp.getBlob().setName("external_source.xlsx");
 }
