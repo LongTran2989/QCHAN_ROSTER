@@ -33,10 +33,15 @@ function updateACSchedules() {
 function doUpdateACSchedules() {
     var sp = SpreadsheetApp.getActive();
     
-    var sh_schedule = sp.getSheetById(CONFIG.SHEET_IDS.SCHEDULE);
-    if (!sh_schedule) throw new Error("Schedule source sheet not found");
-    
-    var value_schedule = sh_schedule.getDataRange().getValues();
+    var value_schedule;
+    if (CONFIG.EXTERNAL_SOURCE.ENABLED) {
+      // Source moved to a public SharePoint Excel file (see ExternalSource.js)
+      value_schedule = getExternalSourceValues(CONFIG.EXTERNAL_SOURCE.SHEET_NAME, sp.getSpreadsheetTimeZone());
+    } else {
+      var sh_schedule = sp.getSheetById(CONFIG.SHEET_IDS.SCHEDULE);
+      if (!sh_schedule) throw new Error("Schedule source sheet not found");
+      value_schedule = sh_schedule.getDataRange().getValues();
+    }
     
     var currentSheet = sp.getActiveSheet();
 

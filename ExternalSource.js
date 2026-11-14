@@ -33,10 +33,12 @@ function fetchExternalXlsxBlob() {
 
 /**
  * Downloads and reads the external workbook.
- * @param {string} [sheetName] Only this tab; omit for all tabs.
- * @returns {Object<string, Array<Array>>} map of tab name -> 2D values
+ * @param {string} [sheetName] Tab to read; empty = first tab.
+ * @param {string} [timeZone] Time zone used to read date cells (pass the roster spreadsheet's
+ *   zone so dates come out exactly as the old in-spreadsheet source did).
+ * @returns {Array<Array>} 2D values of the tab
  */
-function getExternalSourceValues(sheetName) {
+function getExternalSourceValues(sheetName, timeZone) {
   var blob = fetchExternalXlsxBlob();
   var temp = Drive.Files.create(
     { name: "tmp_external_source", mimeType: MimeType.GOOGLE_SHEETS },
@@ -44,53 +46,13 @@ function getExternalSourceValues(sheetName) {
   );
   try {
     var ss = SpreadsheetApp.openById(temp.id);
-    var out = {};
-    ss.getSheets().forEach(function (sh) {
-      if (!sheetName || sh.getName() === sheetName) {
-        out[sh.getName()] = sh.getDataRange().getValues();
-      }
-    });
-    if (sheetName && !out[sheetName]) {
-      throw new Error("Tab '" + sheetName + "' not found in external source.");
-    }
-    return out;
+    if (timeZone) ss.setSpreadsheetTimeZone(timeZone);
+    var sh = sheetName ? ss.getSheetByName(sheetName) : ss.getSheets()[0];
+    if (!sh) throw new Error("Tab '" + sheetName + "' not found in external source.");
+    return sh.getDataRange().getValues();
   } finally {
     Drive.Files.remove(temp.id);
   }
-}
-
-/** True if the downloaded content differs from the last run (so downstream sync can be skipped). */
-function externalSourceChanged(values) {
-  var digest = Utilities.base64Encode(
-    Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, JSON.stringify(values))
-  );
-  var props = PropertiesService.getScriptProperties();
-  if (props.getProperty("EXTERNAL_SOURCE_HASH") === digest) return false;
-  props.setProperty("EXTERNAL_SOURCE_HASH", digest);
-  return true;
-}
-
-/**
- * Trigger entry point. Pulls the data and, if changed, hands it to the Calendar sync.
- * TODO: point onExternalSourceUpdated at the existing Calendar-sync function.
- */
-function syncFromExternalSource() {
-  var values = getExternalSourceValues(CONFIG.EXTERNAL_SOURCE.SHEET_NAME);
-  if (!externalSourceChanged(values)) return;
-  onExternalSourceUpdated(values);
-}
-
-/** Replace the body with a call into the Calendar sync, which now receives data instead of reading Google Sheets. */
-function onExternalSourceUpdated(values) {
-  console.log("External source changed; tabs: " + Object.keys(values).join(", "));
-}
-
-/** Run once to schedule the sync (every 30 minutes). */
-function installExternalSyncTrigger() {
-  ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (t.getHandlerFunction() === "syncFromExternalSource") ScriptApp.deleteTrigger(t);
-  });
-  ScriptApp.newTrigger("syncFromExternalSource").timeBased().everyMinutes(30).create();
 }
 
 if (typeof module !== "undefined") {
