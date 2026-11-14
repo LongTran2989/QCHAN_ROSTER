@@ -40,11 +40,40 @@ function pickFontColor(bgHex) {
   return contrastRatio(bgHex, STYLE_WHITE) > contrastRatio(bgHex, STYLE_BLACK) ? STYLE_WHITE : STYLE_BLACK;
 }
 
+/**
+ * Resolves every style decision for one check row.
+ * @param {{acType: string, isChk: boolean, nightShiftRequired: boolean, assigned: boolean, changed: boolean}} opts
+ * @param {object} colors CONFIG.COLORS
+ * @returns {{barColor: string, labelBg: string, labelFont: string, bold: boolean,
+ *            border: null|{color: string, style: string}}}
+ */
+function resolveCheckStyle(opts, colors) {
+  var barColor;
+  switch (opts.acType) {
+    case "A320": case "A321": barColor = colors.A320; break;
+    case "A350": barColor = colors.A350; break;
+    case "B787": barColor = colors.B787; break;
+    default: barColor = colors.DEFAULT; break;
+  }
+  var labelBg = opts.nightShiftRequired ? colors.NIGHT_SHIFT_FLAG : barColor;
+  var border = null;
+  if (opts.changed) border = { color: colors.CHANGE_HIGHLIGHT, style: "SOLID_THICK" };
+  else if (!opts.assigned) border = { color: colors.UNASSIGNED_BORDER, style: "DASHED" };
+  return {
+    barColor: barColor,
+    labelBg: labelBg,
+    labelFont: pickFontColor(labelBg),
+    bold: !!(opts.isChk || opts.nightShiftRequired),
+    border: border
+  };
+}
+
 // Allow `node test/scheduleStyle.test.js` to require() this file, while GAS still sees plain globals.
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     relativeLuminance: relativeLuminance,
     contrastRatio: contrastRatio,
-    pickFontColor: pickFontColor
+    pickFontColor: pickFontColor,
+    resolveCheckStyle: resolveCheckStyle
   };
 }

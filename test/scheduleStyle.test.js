@@ -63,6 +63,60 @@ test("CONFIG.LAYOUT.ROW_HEIGHT is 21", function () {
   assert.strictEqual(require("../Config.js").CONFIG.LAYOUT.ROW_HEIGHT, 21);
 });
 
+function style(over) {
+  var base = { acType: "A350", isChk: false, nightShiftRequired: false, assigned: true, changed: false };
+  Object.keys(over || {}).forEach(function (k) { base[k] = over[k]; });
+  return Style.resolveCheckStyle(base, COLORS);
+}
+
+test("resolveCheckStyle: CHK + night is white bold on dark red", function () {
+  var s = style({ isChk: true, nightShiftRequired: true });
+  assert.strictEqual(s.labelBg, "#B71C1C");
+  assert.strictEqual(s.labelFont, "#FFFFFF");
+  assert.strictEqual(s.bold, true);
+});
+
+test("resolveCheckStyle: plain A350 uses the blue bar with black, non-bold text", function () {
+  var s = style();
+  assert.strictEqual(s.barColor, "#81D4FA");
+  assert.strictEqual(s.labelBg, "#81D4FA");
+  assert.strictEqual(s.labelFont, "#000000");
+  assert.strictEqual(s.bold, false);
+});
+
+test("resolveCheckStyle: A320 and A321 share the yellow bar", function () {
+  assert.strictEqual(style({ acType: "A320" }).barColor, "#FFF59D");
+  assert.strictEqual(style({ acType: "A321" }).barColor, "#FFF59D");
+});
+
+test("resolveCheckStyle: unknown AC type falls back to DEFAULT", function () {
+  assert.strictEqual(style({ acType: "XYZ" }).barColor, COLORS.DEFAULT);
+});
+
+test("resolveCheckStyle: changed + unassigned shows the solid thick highlight", function () {
+  var s = style({ changed: true, assigned: false });
+  assert.deepStrictEqual(s.border, { color: "#6A1B9A", style: "SOLID_THICK" });
+});
+
+test("resolveCheckStyle: unassigned only shows the dashed border", function () {
+  var s = style({ assigned: false });
+  assert.deepStrictEqual(s.border, { color: "#424242", style: "DASHED" });
+});
+
+test("resolveCheckStyle: assigned and unchanged has no border", function () {
+  assert.strictEqual(style().border, null);
+});
+
+["A320", "A321", "A350", "B787", "XYZ"].forEach(function (type) {
+  [false, true].forEach(function (night) {
+    test("resolveCheckStyle: " + type + (night ? " night" : "") + " label font has >= 4.5:1 contrast", function () {
+      var s = style({ acType: type, nightShiftRequired: night });
+      var ratio = Style.contrastRatio(s.labelBg, s.labelFont);
+      assert.ok(ratio >= 4.5, "ratio " + ratio);
+    });
+  });
+});
+
 // --- report ---
 
 console.log(passed + " passed, " + failed.length + " failed");
