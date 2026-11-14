@@ -9,7 +9,8 @@ const CONFIG = {
     SCHEDULE: 2119712554,
     ROSTER_TEMPLATE: "ROSTER_TEMPLATE",
     EMAILS_SHEET: "Email_Config",
-    CHANGE_LOG_SHEET: "Change Log"
+    CHANGE_LOG_SHEET: "Change Log",
+    ASSIGNMENTS_DB: "Assignments_DB"
   },
 
   // Schedule source: public view-only SharePoint Excel link (replaced the old Google Sheet)
@@ -28,6 +29,15 @@ const CONFIG = {
     LEFT_COL: 3,
     RIGHT_COL: 33,
     UPDATE_INFO_CELL: "B75"
+  },
+
+  // Personnel info indexes assuming column mappings (legacy, from live Apps Script project)
+  PERSONNEL: {
+    TT: 0,
+    VAECO_ID: 1,
+    NAME: 2,
+    TITLE: 3,
+    PJID: 37
   },
 
   // Source of names for the Assign Personnel sidebar

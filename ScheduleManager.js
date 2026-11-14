@@ -328,3 +328,127 @@ function drawChecksBlock(dataBlock, startRow, assignedPersonByPjid, highlightedP
     currentSheet.autoResizeRows(startRow, dataBlock.length);
   }
 }
+
+// Legacy assignment-DB helpers, ported from the live Apps Script project.
+// Not called by any current flow (updateACSchedules uses the snapshot sheet).
+
+/**
+ * Gets or creates the Assignments Database sheet.
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} spreadsheet 
+ */
+function getOrCreateAssignmentsDB(spreadsheet) {
+  var dbSheet = spreadsheet.getSheetByName(CONFIG.SHEET_IDS.ASSIGNMENTS_DB);
+  if (!dbSheet) {
+    dbSheet = spreadsheet.insertSheet(CONFIG.SHEET_IDS.ASSIGNMENTS_DB);
+    dbSheet.appendRow(["WP No.", "Assignment", "Last Updated", "Start Date", "End Date"]);
+    dbSheet.getRange("A1:E1").setFontWeight("bold");
+    dbSheet.setFrozenRows(1);
+  }
+  return dbSheet;
+}
+
+/**
+ * Harvests current assignments from the active sheet, syncs them to the DB, 
+ * and returns the full DB as an optimized lookup map.
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} currentSheet 
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} spreadsheet
+ * @param {Array<Array<any>>} value_schedule The raw schedule data
+ * @returns {Object} map of WP No -> Assignment
+ */
+function syncAssignmentsToDB(currentSheet, spreadsheet, value_schedule) {
+  var dbSheet = getOrCreateAssignmentsDB(spreadsheet);
+  
+  var pjidDates = {};
+  if (value_schedule) {
+    for (var i = 1; i < value_schedule.length; i++) {
+      var p = value_schedule[i][SCHEDULE_INDEX.PJID];
+      if (p) {
+        pjidDates[p] = {
+          start: value_schedule[i][SCHEDULE_INDEX.FROM],
+          end: value_schedule[i][SCHEDULE_INDEX.TO]
+        };
+      }
+    }
+  }
+
+  // 1. Harvest from current sheet
+  var harvested = [];
+  if (currentSheet.getRange("AJ1").getValue() !== "") {
+    var startRow = currentSheet.getRange("AJ1").getValue();
+    var endRow = currentSheet.getRange("AK1").getValue() + startRow;
+    var name = currentSheet.getRange(startRow, 2, endRow - startRow, 1).getValues();
+    var id = currentSheet.getRange(startRow, 38, endRow - startRow, 1).getValues();
+    for (var i = 0; i < id.length; i++){
+      if (id[i][0] && id[i][0] !== "") {
+        harvested.push({ pjid: id[i][0], assign: name[i][0] });
+      }
+    }
+  }
+
+  // 2. Read DB
+  var dbData = dbSheet.getDataRange().getValues();
+  var dbMap = {}; // Maps PJID to { row: rowNum, assign: assignment }
+  for (var i = 1; i < dbData.length; i++) {
+    var pjid = dbData[i][0];
+    if (pjid) {
+      dbMap[pjid] = { row: i + 1, assign: dbData[i][1], timestamp: dbData[i][2], start: dbData[i][3], end: dbData[i][4] };
+    }
+  }
+
+  // 3. Update DB Map with harvested data
+  var timestamp = new Date();
+  var rowsToAppend = [];
+  var dbUpdates = [];
+  
+  for (var i = 0; i < harvested.length; i++) {
+    var pjid = harvested[i].pjid;
+    var assign = harvested[i].assign;
+    
+    var sDate = pjidDates[pjid] ? pjidDates[pjid].start : "";
+    var eDate = pjidDates[pjid] ? pjidDates[pjid].end : "";
+    
+    if (dbMap[pjid]) {
+      var changed = false;
+      var newStart = dbMap[pjid].start;
+      var newEnd = dbMap[pjid].end;
+      var newTs = dbMap[pjid].timestamp;
+
+      // Update existing if changed
+      if (dbMap[pjid].assign !== assign) {
+        changed = true;
+        newTs = timestamp;
+      }
+      if ((sDate && !dbMap[pjid].start) || (eDate && !dbMap[pjid].end)) {
+        changed = true;
+        if (sDate && !dbMap[pjid].start) newStart = sDate;
+        if (eDate && !dbMap[pjid].end) newEnd = eDate;
+      }
+      
+      if (changed) {
+        dbUpdates.push({row: dbMap[pjid].row, vals: [[assign, newTs, newStart, newEnd]]});
+        dbMap[pjid].assign = assign;
+      }
+    } else {
+      // Add new
+      rowsToAppend.push([pjid, assign, timestamp, sDate, eDate]);
+      dbMap[pjid] = { assign: assign }; // Row doesn't matter for the return map
+    }
+  }
+
+  // Execute updates
+  for (var i = 0; i < dbUpdates.length; i++) {
+    dbSheet.getRange(dbUpdates[i].row, 2, 1, 4).setValues(dbUpdates[i].vals);
+  }
+
+  // 4. Bulk append new rows
+  if (rowsToAppend.length > 0) {
+    dbSheet.getRange(dbSheet.getLastRow() + 1, 1, rowsToAppend.length, 5).setValues(rowsToAppend);
+  }
+
+  // 5. Build and return simple key-value map for rendering
+  var returnMap = {};
+  for (var key in dbMap) {
+    returnMap[key] = dbMap[key].assign;
+  }
+  return returnMap;
+}
