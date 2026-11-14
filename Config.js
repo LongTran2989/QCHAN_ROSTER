@@ -12,6 +12,12 @@ const CONFIG = {
     CHANGE_LOG_SHEET: "Change Log"
   },
 
+  // Schedule source: public view-only SharePoint Excel link (replaced the old Google Sheet)
+  EXTERNAL_SOURCE: {
+    URL: "https://vaecovna-my.sharepoint.com/:x:/g/personal/nguyendinhkhanh_vaeco_com_vn/IQDQlCIeF2Y6R7vOHjuFSWo1ASGlooDnTJBXBv6y5Y75axI?e=FBI5ph",
+    SHEET_NAME: "" // tab to read; empty = all tabs
+  },
+
   SNAPSHOT_SHEET_PREFIX: "_Snapshot_",
 
   // Layout constraints for the Roster table
