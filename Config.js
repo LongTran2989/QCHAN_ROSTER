@@ -13,10 +13,11 @@ const CONFIG = {
     ASSIGNMENTS_DB: "Assignments_DB"
   },
 
-  // Schedule source: public view-only SharePoint Excel link (replaced the old Google Sheet)
+  // Schedule source: SharePoint Excel link (anonymous share). Downloaded with cookie-aware
+  // redirect handling (see ExternalSource.js). ENABLED = false falls back to the SCHEDULE tab.
   EXTERNAL_SOURCE: {
     URL: "https://vaecovna-my.sharepoint.com/:x:/g/personal/nguyendinhkhanh_vaeco_com_vn/IQDQlCIeF2Y6R7vOHjuFSWo1ASGlooDnTJBXBv6y5Y75axI?e=FBI5ph",
-    ENABLED: true, // false = fall back to the old in-spreadsheet SCHEDULE tab
+    ENABLED: true, // true = SharePoint (cookie-aware download, see ExternalSource.js); false = in-spreadsheet SCHEDULE tab
     SHEET_NAME: "" // tab to read; empty = first tab
   },
 
