@@ -91,15 +91,26 @@ function buildShiftNote(shiftInfo) {
 }
 
 /**
- * Compact suffix appended to a check's label, e.g. " (E)" or " (E N)".
- * @param {ReturnType<typeof classifyWP>} shiftInfo
+ * Compact suffix appended to a check label: a moon when night-shift coverage is required, else
+ * empty. Shift letters (E/M) live in the cell note, not the label.
+ * @param {ReturnType<typeof classifyWP>|null|undefined} shiftInfo
  * @returns {string}
  */
 function buildShiftLabelSuffix(shiftInfo) {
-  var suffix = " (" + shiftInfo.fromShift;
-  if (shiftInfo.nightShiftRequired) suffix += " N";
-  suffix += ")";
-  return suffix;
+  return (shiftInfo && shiftInfo.nightShiftRequired) ? " \u{1F319}" : "";
+}
+
+/**
+ * Single-line label: [star ]<check><moon>[ middot <assignee>]. Newlines are collapsed to spaces so
+ * the cell never needs to wrap (keeps short-TAT rows at the fixed row height).
+ * @param {{acCheck: string, isChk: boolean, shiftInfo: object|null, assigneeShort?: string}} opts
+ * @returns {string}
+ */
+function buildCheckLabel(opts) {
+  var flat = function (s) { return String(s == null ? "" : s).replace(/\s*[\r\n]+\s*/g, " "); };
+  var label = (opts.isChk ? "★ " : "") + flat(opts.acCheck) + buildShiftLabelSuffix(opts.shiftInfo);
+  if (opts.assigneeShort) label += " · " + flat(opts.assigneeShort);
+  return label;
 }
 
 // Allow `node test/shiftUtils.test.js` to require() this file, while GAS still sees plain globals.
@@ -112,6 +123,7 @@ if (typeof module !== "undefined" && module.exports) {
     classifyWP: classifyWP,
     formatBangkokTime: formatBangkokTime,
     buildShiftNote: buildShiftNote,
-    buildShiftLabelSuffix: buildShiftLabelSuffix
+    buildShiftLabelSuffix: buildShiftLabelSuffix,
+    buildCheckLabel: buildCheckLabel
   };
 }
