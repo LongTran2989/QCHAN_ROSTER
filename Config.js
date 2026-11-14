@@ -9,7 +9,16 @@ const CONFIG = {
     SCHEDULE: 2119712554,
     ROSTER_TEMPLATE: "ROSTER_TEMPLATE",
     EMAILS_SHEET: "Email_Config",
-    CHANGE_LOG_SHEET: "Change Log"
+    CHANGE_LOG_SHEET: "Change Log",
+    ASSIGNMENTS_DB: "Assignments_DB"
+  },
+
+  // Schedule source: SharePoint Excel link (anonymous share). Downloaded with cookie-aware
+  // redirect handling (see ExternalSource.js). ENABLED = false falls back to the SCHEDULE tab.
+  EXTERNAL_SOURCE: {
+    URL: "https://vaecovna-my.sharepoint.com/:x:/g/personal/nguyendinhkhanh_vaeco_com_vn/IQDQlCIeF2Y6R7vOHjuFSWo1ASGlooDnTJBXBv6y5Y75axI?e=FBI5ph",
+    ENABLED: true, // true = SharePoint raw AMOS export (tab 'RAW', converted by convertRawToSchedule); false = in-spreadsheet SCHEDULE tab
+    SHEET_NAME: "RAW" // tab to read; empty = first tab
   },
 
   SNAPSHOT_SHEET_PREFIX: "_Snapshot_",
@@ -21,6 +30,15 @@ const CONFIG = {
     LEFT_COL: 3,
     RIGHT_COL: 33,
     UPDATE_INFO_CELL: "B75"
+  },
+
+  // Personnel info indexes assuming column mappings (legacy, from live Apps Script project)
+  PERSONNEL: {
+    TT: 0,
+    VAECO_ID: 1,
+    NAME: 2,
+    TITLE: 3,
+    PJID: 37
   },
 
   // Source of names for the Assign Personnel sidebar

@@ -31,12 +31,31 @@ function updateACSchedules() {
  * Contains no UI calls so it can also be driven from the Web App front end.
  */
 function doUpdateACSchedules() {
+    // One run at a time: overlapping runs (double click, menu + Web App) race on the
+    // snapshot sheet, the roster area and the change log.
+    var lock = LockService.getDocumentLock();
+    if (!lock.tryLock(30000)) {
+      throw new Error("Another schedule update is already running. Wait for it to finish, then try again.");
+    }
+    try {
+      return runUpdateACSchedules();
+    } finally {
+      lock.releaseLock();
+    }
+}
+
+function runUpdateACSchedules() {
     var sp = SpreadsheetApp.getActive();
     
-    var sh_schedule = sp.getSheetById(CONFIG.SHEET_IDS.SCHEDULE);
-    if (!sh_schedule) throw new Error("Schedule source sheet not found");
-    
-    var value_schedule = sh_schedule.getDataRange().getValues();
+    var value_schedule;
+    if (CONFIG.EXTERNAL_SOURCE.ENABLED) {
+      // Source moved to a public SharePoint Excel file (see ExternalSource.js)
+      value_schedule = getExternalSourceValues(CONFIG.EXTERNAL_SOURCE.SHEET_NAME, sp.getSpreadsheetTimeZone());
+    } else {
+      var sh_schedule = sp.getSheetById(CONFIG.SHEET_IDS.SCHEDULE);
+      if (!sh_schedule) throw new Error("Schedule source sheet not found");
+      value_schedule = sh_schedule.getDataRange().getValues();
+    }
     
     var currentSheet = sp.getActiveSheet();
 
@@ -69,6 +88,12 @@ function doUpdateACSchedules() {
       }
     }
     
+    // Safety: never wipe the roster for a source that yielded no HAN rows (wrong tab/columns).
+    if (rawData.length === 0) {
+      throw new Error("No usable HAN rows found in the schedule source (" + (value_schedule.length - 1) +
+        " data rows read). The source layout probably doesn't match SCHEDULE_INDEX. Roster was not changed.");
+    }
+
     // Sort rawData to mimic the old macro: Primary=AC_TYPE, Secondary=FROM
     rawData.sort(function(a, b) {
       if (a[0] < b[0]) return -1;
@@ -320,6 +345,137 @@ function drawChecksBlock(dataBlock, startRow, assignedPersonByPjid, highlightedP
   // label column and let rows grow tall enough to show both lines instead of clipping.
   if (dataBlock.length > 0) {
     currentSheet.getRange(startRow, CONFIG.ROSTER.LEFT_COL, dataBlock.length, CONFIG.ROSTER.RIGHT_COL - CONFIG.ROSTER.LEFT_COL + 1).setWrap(true);
+    // Long checks (TAT > 2 days) paint a wide bar: leave the label unwrapped so the WP Desc.
+    // runs across the painted cells instead of being squeezed into the first day's cell.
+    for (var w = 0; w < dataBlock.length; w++) {
+      if (Number(dataBlock[w][SCHEDULE_INDEX.TAT]) > 2) {
+        currentSheet.getRange(startRow + w, CONFIG.ROSTER.LEFT_COL - 1 + dataBlock[w][SCHEDULE_INDEX.FROM]).setWrap(false);
+      }
+    }
     currentSheet.autoResizeRows(startRow, dataBlock.length);
   }
+}
+
+// Legacy assignment-DB helpers, ported from the live Apps Script project.
+// Not called by any current flow (updateACSchedules uses the snapshot sheet).
+
+/**
+ * Gets or creates the Assignments Database sheet.
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} spreadsheet 
+ */
+function getOrCreateAssignmentsDB(spreadsheet) {
+  var dbSheet = spreadsheet.getSheetByName(CONFIG.SHEET_IDS.ASSIGNMENTS_DB);
+  if (!dbSheet) {
+    dbSheet = spreadsheet.insertSheet(CONFIG.SHEET_IDS.ASSIGNMENTS_DB);
+    dbSheet.appendRow(["WP No.", "Assignment", "Last Updated", "Start Date", "End Date"]);
+    dbSheet.getRange("A1:E1").setFontWeight("bold");
+    dbSheet.setFrozenRows(1);
+  }
+  return dbSheet;
+}
+
+/**
+ * Harvests current assignments from the active sheet, syncs them to the DB, 
+ * and returns the full DB as an optimized lookup map.
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} currentSheet 
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} spreadsheet
+ * @param {Array<Array<any>>} value_schedule The raw schedule data
+ * @returns {Object} map of WP No -> Assignment
+ */
+function syncAssignmentsToDB(currentSheet, spreadsheet, value_schedule) {
+  var dbSheet = getOrCreateAssignmentsDB(spreadsheet);
+  
+  var pjidDates = {};
+  if (value_schedule) {
+    for (var i = 1; i < value_schedule.length; i++) {
+      var p = value_schedule[i][SCHEDULE_INDEX.PJID];
+      if (p) {
+        pjidDates[p] = {
+          start: value_schedule[i][SCHEDULE_INDEX.FROM],
+          end: value_schedule[i][SCHEDULE_INDEX.TO]
+        };
+      }
+    }
+  }
+
+  // 1. Harvest from current sheet
+  var harvested = [];
+  if (currentSheet.getRange("AJ1").getValue() !== "") {
+    var startRow = currentSheet.getRange("AJ1").getValue();
+    var endRow = currentSheet.getRange("AK1").getValue() + startRow;
+    var name = currentSheet.getRange(startRow, 2, endRow - startRow, 1).getValues();
+    var id = currentSheet.getRange(startRow, 38, endRow - startRow, 1).getValues();
+    for (var i = 0; i < id.length; i++){
+      if (id[i][0] && id[i][0] !== "") {
+        harvested.push({ pjid: id[i][0], assign: name[i][0] });
+      }
+    }
+  }
+
+  // 2. Read DB
+  var dbData = dbSheet.getDataRange().getValues();
+  var dbMap = {}; // Maps PJID to { row: rowNum, assign: assignment }
+  for (var i = 1; i < dbData.length; i++) {
+    var pjid = dbData[i][0];
+    if (pjid) {
+      dbMap[pjid] = { row: i + 1, assign: dbData[i][1], timestamp: dbData[i][2], start: dbData[i][3], end: dbData[i][4] };
+    }
+  }
+
+  // 3. Update DB Map with harvested data
+  var timestamp = new Date();
+  var rowsToAppend = [];
+  var dbUpdates = [];
+  
+  for (var i = 0; i < harvested.length; i++) {
+    var pjid = harvested[i].pjid;
+    var assign = harvested[i].assign;
+    
+    var sDate = pjidDates[pjid] ? pjidDates[pjid].start : "";
+    var eDate = pjidDates[pjid] ? pjidDates[pjid].end : "";
+    
+    if (dbMap[pjid]) {
+      var changed = false;
+      var newStart = dbMap[pjid].start;
+      var newEnd = dbMap[pjid].end;
+      var newTs = dbMap[pjid].timestamp;
+
+      // Update existing if changed
+      if (dbMap[pjid].assign !== assign) {
+        changed = true;
+        newTs = timestamp;
+      }
+      if ((sDate && !dbMap[pjid].start) || (eDate && !dbMap[pjid].end)) {
+        changed = true;
+        if (sDate && !dbMap[pjid].start) newStart = sDate;
+        if (eDate && !dbMap[pjid].end) newEnd = eDate;
+      }
+      
+      if (changed) {
+        dbUpdates.push({row: dbMap[pjid].row, vals: [[assign, newTs, newStart, newEnd]]});
+        dbMap[pjid].assign = assign;
+      }
+    } else {
+      // Add new
+      rowsToAppend.push([pjid, assign, timestamp, sDate, eDate]);
+      dbMap[pjid] = { assign: assign }; // Row doesn't matter for the return map
+    }
+  }
+
+  // Execute updates
+  for (var i = 0; i < dbUpdates.length; i++) {
+    dbSheet.getRange(dbUpdates[i].row, 2, 1, 4).setValues(dbUpdates[i].vals);
+  }
+
+  // 4. Bulk append new rows
+  if (rowsToAppend.length > 0) {
+    dbSheet.getRange(dbSheet.getLastRow() + 1, 1, rowsToAppend.length, 5).setValues(rowsToAppend);
+  }
+
+  // 5. Build and return simple key-value map for rendering
+  var returnMap = {};
+  for (var key in dbMap) {
+    returnMap[key] = dbMap[key].assign;
+  }
+  return returnMap;
 }
