@@ -184,7 +184,10 @@ function runUpdateACSchedules() {
     var areaToClear = currentSheet.getRange(CONFIG.ROSTER.LOWER_ROW + 3, CONFIG.ROSTER.LEFT_COL - 1, 200, 33 + 7);
     areaToClear.clearContent();
     areaToClear.clearFormat();
-    
+
+    // Color legend on the "PHASE CHECKS" title row, starting at the first day column.
+    drawLegend(currentSheet, CONFIG.ROSTER.LOWER_ROW + 3, CONFIG.ROSTER.LEFT_COL);
+
     // Batch Output Definitions
     var renderPayloads = [];
 
@@ -282,6 +285,25 @@ function runUpdateACSchedules() {
       var changeLogSheet = ensureChangeLogSheet(sp);
       appendChangeLogEntries(changeLogSheet, changeLogRows);
     }
+}
+
+/**
+ * Draws the color legend: one swatch per entry, each 3 cells wide (label in the first cell,
+ * overflowing across the other two), so 10 entries fit within the 31 day columns.
+ */
+function drawLegend(sheet, row, startCol) {
+  var SWATCH_WIDTH = 3;
+  var entries = buildLegendEntries(CONFIG.COLORS);
+  for (var k = 0; k < entries.length; k++) {
+    var e = entries[k];
+    var swatch = sheet.getRange(row, startCol + k * SWATCH_WIDTH, 1, SWATCH_WIDTH);
+    swatch.setBackground(e.bg).setFontColor(e.font).setFontWeight("bold");
+    sheet.getRange(row, startCol + k * SWATCH_WIDTH).setValue(e.label).setWrapStrategy(SpreadsheetApp.WrapStrategy.OVERFLOW);
+    if (e.border) {
+      var style = e.border === CONFIG.COLORS.CHANGE_HIGHLIGHT ? SpreadsheetApp.BorderStyle.SOLID_THICK : SpreadsheetApp.BorderStyle.DASHED;
+      swatch.setBorder(true, true, true, true, false, false, e.border, style);
+    }
+  }
 }
 
 /**

@@ -117,6 +117,38 @@ test("resolveCheckStyle: assigned and unchanged has no border", function () {
   });
 });
 
+test("buildLegendEntries returns the 10 entries in order", function () {
+  var labels = Style.buildLegendEntries(COLORS).map(function (e) { return e.label; });
+  assert.deepStrictEqual(labels, [
+    "A320/A321", "A350", "B787", "Other type", "Night shift \u{1F319}", "★ CHK", "Unassigned", "Changed", "L-HAN", "HAN"
+  ]);
+});
+
+test("buildLegendEntries: first four fills are the aircraft-type palette", function () {
+  var bgs = Style.buildLegendEntries(COLORS).slice(0, 4).map(function (e) { return e.bg; });
+  assert.deepStrictEqual(bgs, [COLORS.A320, COLORS.A350, COLORS.B787, COLORS.DEFAULT]);
+});
+
+test("buildLegendEntries: night entry is white on the night red", function () {
+  var night = Style.buildLegendEntries(COLORS)[4];
+  assert.strictEqual(night.bg, COLORS.NIGHT_SHIFT_FLAG);
+  assert.strictEqual(night.font, "#FFFFFF");
+});
+
+test("buildLegendEntries: every entry has >= 4.5:1 font contrast", function () {
+  Style.buildLegendEntries(COLORS).forEach(function (e) {
+    var ratio = Style.contrastRatio(e.bg, e.font);
+    assert.ok(ratio >= 4.5, e.label + " ratio " + ratio);
+  });
+});
+
+test("buildLegendEntries: CHK entry uses black text; border entries carry their border color", function () {
+  var entries = Style.buildLegendEntries(COLORS);
+  assert.strictEqual(entries[5].font, "#000000");
+  assert.strictEqual(entries[6].border, COLORS.UNASSIGNED_BORDER);
+  assert.strictEqual(entries[7].border, COLORS.CHANGE_HIGHLIGHT);
+});
+
 // --- report ---
 
 console.log(passed + " passed, " + failed.length + " failed");
