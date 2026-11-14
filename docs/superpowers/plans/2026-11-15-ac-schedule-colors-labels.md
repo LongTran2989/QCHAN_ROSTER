@@ -151,3 +151,8 @@ Black = `#000000`, white = `#FFFFFF`. Weekend/null backgrounds (`BG_SAT_SUN`, `B
 - Coverage: item 1 (no red text, `★`) → Tasks 3–4; item 2 (readable label, no tall rows) → Tasks 2, 4; item 3 (unassigned flag) → Tasks 3–4; item 4 (font-from-fill + palette + change color) → Tasks 1, 3; legend → Task 5.
 - Signature consistency: `resolveCheckStyle(opts, colors)` used identically in Tasks 3–4; `buildCheckLabel` in Tasks 2 and 4.
 - Open assumptions to confirm during Task 4/5: the legend row (76) is free of other content, and column widths are wide enough for 3-cell legend entries.
+
+## Amendment (2026-11-15)
+
+- Task 5 (legend) was implemented, then **removed at the user's request**; no legend is drawn and `buildLegendEntries` no longer exists.
+- Night fill changed to `#EF9A9A` with black text (white text became unreadable when labels overflow onto neighbouring cells).

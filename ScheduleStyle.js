@@ -69,31 +69,6 @@ function resolveCheckStyle(opts, colors) {
 }
 
 /**
- * Legend swatches, in display order. Entries without a fill use white so font contrast is defined.
- * @param {object} colors CONFIG.COLORS
- * @returns {Array<{label: string, bg: string, font: string, border?: string}>}
- */
-function buildLegendEntries(colors) {
-  var entry = function (label, bg, border) {
-    var e = { label: label, bg: bg, font: pickFontColor(bg) };
-    if (border) e.border = border;
-    return e;
-  };
-  return [
-    entry("A320/A321", colors.A320),
-    entry("A350", colors.A350),
-    entry("B787", colors.B787),
-    entry("Other type", colors.DEFAULT),
-    entry("Night shift \u{1F319}", colors.NIGHT_SHIFT_FLAG),
-    entry("★ CHK", STYLE_WHITE),
-    entry("Unassigned", STYLE_WHITE, colors.UNASSIGNED_BORDER),
-    entry("Changed", STYLE_WHITE, colors.CHANGE_HIGHLIGHT),
-    entry("L-HAN", colors.EA_LAN),
-    entry("HAN", colors.EA_HAN)
-  ];
-}
-
-/**
  * Orders border operations so SOLID_THICK ones are applied after DASHED ones. Adjacent rows share a
  * grid line, and the later setBorder call wins that line, so "changed" boxes must be drawn last.
  * Stable; does not mutate the input.
@@ -113,7 +88,6 @@ if (typeof module !== "undefined" && module.exports) {
     contrastRatio: contrastRatio,
     pickFontColor: pickFontColor,
     resolveCheckStyle: resolveCheckStyle,
-    buildLegendEntries: buildLegendEntries,
     orderBorders: orderBorders
   };
 }
