@@ -82,12 +82,64 @@ function fetchExternalXlsxBlob() {
   return resp.getBlob().setName("external_source.xlsx");
 }
 
+/** Header names of the raw AMOS export (tab "RAW") mapped to what the sync needs. */
+var RAW_HEADERS = {
+  AC_TYPE: "AC Model", AC_REG: "AC Reg.", AC_CHECK: "WP Desc.", PJID: "WP No.",
+  STATION: "Station", TAT: "TAT",
+  START_DATE: "Start Date", START_TIME: "Start Time", END_DATE: "End Date", END_TIME: "End Time"
+};
+
+/**
+ * Converts the raw AMOS export into the 9-column schedule layout the sync reads
+ * (see SCHEDULE_INDEX in ScheduleManager.js): [AC_TYPE, AC_REG, AC_CHECK, FROM, TO, TAT,
+ * STATION, NOTE, PJID]. Columns are found by header name so reordering doesn't break it.
+ * FROM/TO are naive UTC Dates: the export's date + time wall-clock (which is UTC) read as UTC.
+ * @param {Array<Array>} values 2D values of the RAW tab (first row = headers).
+ * @param {function(Date,string):string} fmt formats a Date's wall clock in the sheet's zone
+ *   ("yyyy-MM-dd" / "HH:mm"); in Apps Script: function (d, p) { return Utilities.formatDate(d, tz, p); }
+ */
+function convertRawToSchedule(values, fmt) {
+  if (!values || !values.length) throw new Error("External source tab is empty.");
+  var header = values[0].map(function (h) { return String(h).trim(); });
+  var col = {};
+  Object.keys(RAW_HEADERS).forEach(function (k) {
+    var idx = header.indexOf(RAW_HEADERS[k]);
+    if (idx === -1) {
+      throw new Error("External source is missing column '" + RAW_HEADERS[k] + "'. Found: " + header.join(", "));
+    }
+    col[k] = idx;
+  });
+
+  function wallClock(dateCell, timeCell) {
+    var d = dateCell instanceof Date ? fmt(dateCell, "yyyy-MM-dd") : String(dateCell).trim();
+    var t = timeCell instanceof Date ? fmt(timeCell, "HH:mm") : String(timeCell).trim();
+    var dm = d.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    var tm = t.match(/^(\d{1,2}):(\d{2})/);
+    if (!dm || !tm) return "";
+    return new Date(Date.UTC(+dm[1], +dm[2] - 1, +dm[3], +tm[1], +tm[2]));
+  }
+
+  var out = [["AC_TYPE", "AC_REG", "AC_CHECK", "FROM", "TO", "TAT", "STATION", "NOTE", "PJID"]];
+  for (var i = 1; i < values.length; i++) {
+    var r = values[i];
+    var pjid = r[col.PJID];
+    if (pjid === "" || pjid == null) continue;
+    out.push([
+      r[col.AC_TYPE], r[col.AC_REG], r[col.AC_CHECK],
+      wallClock(r[col.START_DATE], r[col.START_TIME]),
+      wallClock(r[col.END_DATE], r[col.END_TIME]),
+      r[col.TAT], r[col.STATION], "", pjid
+    ]);
+  }
+  return out;
+}
+
 /**
  * Downloads and reads the external workbook.
  * @param {string} [sheetName] Tab to read; empty = first tab.
  * @param {string} [timeZone] Time zone used to read date cells (pass the roster spreadsheet's
  *   zone so dates come out exactly as the old in-spreadsheet source did).
- * @returns {Array<Array>} 2D values of the tab
+ * @returns {Array<Array>} the tab converted to the 9-column schedule layout
  */
 function getExternalSourceValues(sheetName, timeZone) {
   var blob = fetchExternalXlsxBlob();
@@ -100,12 +152,15 @@ function getExternalSourceValues(sheetName, timeZone) {
     if (timeZone) ss.setSpreadsheetTimeZone(timeZone);
     var sh = sheetName ? ss.getSheetByName(sheetName) : ss.getSheets()[0];
     if (!sh) throw new Error("Tab '" + sheetName + "' not found in external source.");
-    return sh.getDataRange().getValues();
+    var tz = ss.getSpreadsheetTimeZone();
+    return convertRawToSchedule(sh.getDataRange().getValues(), function (d, p) {
+      return Utilities.formatDate(d, tz, p);
+    });
   } finally {
     Drive.Files.remove(temp.id);
   }
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { buildDownloadUrl: buildDownloadUrl, looksLikeXlsx: looksLikeXlsx, mergeCookies: mergeCookies, resolveRedirect: resolveRedirect };
+  module.exports = { buildDownloadUrl: buildDownloadUrl, looksLikeXlsx: looksLikeXlsx, convertRawToSchedule: convertRawToSchedule, mergeCookies: mergeCookies, resolveRedirect: resolveRedirect };
 }

@@ -31,6 +31,20 @@ function updateACSchedules() {
  * Contains no UI calls so it can also be driven from the Web App front end.
  */
 function doUpdateACSchedules() {
+    // One run at a time: overlapping runs (double click, menu + Web App) race on the
+    // snapshot sheet, the roster area and the change log.
+    var lock = LockService.getDocumentLock();
+    if (!lock.tryLock(30000)) {
+      throw new Error("Another schedule update is already running. Wait for it to finish, then try again.");
+    }
+    try {
+      return runUpdateACSchedules();
+    } finally {
+      lock.releaseLock();
+    }
+}
+
+function runUpdateACSchedules() {
     var sp = SpreadsheetApp.getActive();
     
     var value_schedule;
@@ -74,6 +88,12 @@ function doUpdateACSchedules() {
       }
     }
     
+    // Safety: never wipe the roster for a source that yielded no HAN rows (wrong tab/columns).
+    if (rawData.length === 0) {
+      throw new Error("No usable HAN rows found in the schedule source (" + (value_schedule.length - 1) +
+        " data rows read). The source layout probably doesn't match SCHEDULE_INDEX. Roster was not changed.");
+    }
+
     // Sort rawData to mimic the old macro: Primary=AC_TYPE, Secondary=FROM
     rawData.sort(function(a, b) {
       if (a[0] < b[0]) return -1;
@@ -325,6 +345,13 @@ function drawChecksBlock(dataBlock, startRow, assignedPersonByPjid, highlightedP
   // label column and let rows grow tall enough to show both lines instead of clipping.
   if (dataBlock.length > 0) {
     currentSheet.getRange(startRow, CONFIG.ROSTER.LEFT_COL, dataBlock.length, CONFIG.ROSTER.RIGHT_COL - CONFIG.ROSTER.LEFT_COL + 1).setWrap(true);
+    // Long checks (TAT > 2 days) paint a wide bar: leave the label unwrapped so the WP Desc.
+    // runs across the painted cells instead of being squeezed into the first day's cell.
+    for (var w = 0; w < dataBlock.length; w++) {
+      if (Number(dataBlock[w][SCHEDULE_INDEX.TAT]) > 2) {
+        currentSheet.getRange(startRow + w, CONFIG.ROSTER.LEFT_COL - 1 + dataBlock[w][SCHEDULE_INDEX.FROM]).setWrap(false);
+      }
+    }
     currentSheet.autoResizeRows(startRow, dataBlock.length);
   }
 }

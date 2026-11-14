@@ -17,8 +17,8 @@ const CONFIG = {
   // redirect handling (see ExternalSource.js). ENABLED = false falls back to the SCHEDULE tab.
   EXTERNAL_SOURCE: {
     URL: "https://vaecovna-my.sharepoint.com/:x:/g/personal/nguyendinhkhanh_vaeco_com_vn/IQDQlCIeF2Y6R7vOHjuFSWo1ASGlooDnTJBXBv6y5Y75axI?e=FBI5ph",
-    ENABLED: true, // true = SharePoint (cookie-aware download, see ExternalSource.js); false = in-spreadsheet SCHEDULE tab
-    SHEET_NAME: "" // tab to read; empty = first tab
+    ENABLED: true, // true = SharePoint raw AMOS export (tab 'RAW', converted by convertRawToSchedule); false = in-spreadsheet SCHEDULE tab
+    SHEET_NAME: "RAW" // tab to read; empty = first tab
   },
 
   SNAPSHOT_SHEET_PREFIX: "_Snapshot_",

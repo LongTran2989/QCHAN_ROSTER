@@ -127,9 +127,15 @@ function ensureSnapshotSheet(spreadsheet, rosterSheetName) {
   var name = CONFIG.SNAPSHOT_SHEET_PREFIX + rosterSheetName;
   var sheet = spreadsheet.getSheetByName(name);
   if (!sheet) {
-    sheet = spreadsheet.insertSheet(name);
-    sheet.hideSheet();
-    sheet.getRange(1, 1, 1, SNAPSHOT_HEADER.length).setValues([SNAPSHOT_HEADER]);
+    try {
+      sheet = spreadsheet.insertSheet(name);
+      sheet.hideSheet();
+      sheet.getRange(1, 1, 1, SNAPSHOT_HEADER.length).setValues([SNAPSHOT_HEADER]);
+    } catch (err) {
+      // Another run created it between our lookup and insert: use that one.
+      sheet = spreadsheet.getSheetByName(name);
+      if (!sheet) throw err;
+    }
   }
   return sheet;
 }
