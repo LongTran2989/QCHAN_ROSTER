@@ -81,10 +81,18 @@ function compareScheduleRows(a, b) {
   return ra < rb ? -1 : (ra > rb ? 1 : 0);
 }
 
-/** A/C type ascending (A321 before A350), then the staircase order within each type. */
+/**
+ * Sort group for an A/C type: the first 3 characters, so A320/A321 (same family and bar colour)
+ * form ONE staircase instead of two, and likewise A350/A359.
+ */
+function typeGroup(type) {
+  return String(type).trim().toUpperCase().substring(0, 3);
+}
+
+/** A/C family ascending (A32x before A35x), then the staircase order within each family. */
 function compareByTypeThenStair(a, b) {
-  var ta = String(a[0]);
-  var tb = String(b[0]);
+  var ta = typeGroup(a[0]);
+  var tb = typeGroup(b[0]);
   if (ta !== tb) return ta < tb ? -1 : 1;
   return compareScheduleRows(a, b);
 }

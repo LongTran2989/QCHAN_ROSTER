@@ -153,6 +153,17 @@ test("compareByTypeThenStair: A/C type groups first, staircase within each", fun
   assert.deepStrictEqual(order, ["C", "B", "Z", "A"]);
 });
 
+test("compareByTypeThenStair: A320 and A321 form one staircase", function () {
+  var rows = [
+    ["A321", "B", "", 5, 9],
+    ["A320", "C", "", 1, 2],
+    ["A350", "D", "", 1, 2],
+    ["A321 ", "A", "", 3, 4]
+  ];
+  var order = rows.slice().sort(Layout.compareByTypeThenStair).map(function (r) { return r[1]; });
+  assert.deepStrictEqual(order, ["C", "A", "B", "D"]);
+});
+
 // --- report ---
 
 console.log(passed + " passed, " + failed.length + " failed");
