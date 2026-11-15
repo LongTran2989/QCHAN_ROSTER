@@ -40,9 +40,65 @@ function pickFontColor(bgHex) {
   return contrastRatio(bgHex, STYLE_WHITE) > contrastRatio(bgHex, STYLE_BLACK) ? STYLE_WHITE : STYLE_BLACK;
 }
 
+function srgbToLab(hex) {
+  var lin = [1, 3, 5].map(function (i) {
+    var c = parseInt(hex.substr(i, 2), 16) / 255;
+    return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  // sRGB -> XYZ (D65), then normalised by the D65 white point.
+  var x = (0.4124564 * lin[0] + 0.3575761 * lin[1] + 0.1804375 * lin[2]) / 0.95047;
+  var y = (0.2126729 * lin[0] + 0.7151522 * lin[1] + 0.0721750 * lin[2]) / 1.0;
+  var z = (0.0193339 * lin[0] + 0.1191920 * lin[1] + 0.9503041 * lin[2]) / 1.08883;
+  var f = function (t) { return t > 216 / 24389 ? Math.cbrt(t) : (24389 / 27 * t + 16) / 116; };
+  var fx = f(x), fy = f(y), fz = f(z);
+  return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+}
+
+/**
+ * Perceptual distance between two hex colors: CIELAB delta E76 (D65, sRGB). Roughly: < 10 looks
+ * alike, >= 25 is clearly different.
+ * @param {string} hexA
+ * @param {string} hexB
+ * @returns {number}
+ */
+function colorDistance(hexA, hexB) {
+  var a = srgbToLab(hexA);
+  var b = srgbToLab(hexB);
+  return Math.sqrt(Math.pow(a[0] - b[0], 2) + Math.pow(a[1] - b[1], 2) + Math.pow(a[2] - b[2], 2));
+}
+
+/**
+ * Station fill: L-HAN is EA_LAN, anything else (HAN) is EA_HAN.
+ * @param {string} station
+ * @param {object} colors CONFIG.COLORS
+ * @returns {string}
+ */
+function stationFill(station, colors) {
+  return station === "L-HAN" ? colors.EA_LAN : colors.EA_HAN;
+}
+
+/**
+ * Style for a Phase WP (CHK short-TAT): the label keeps the station fill even at night (never the
+ * night red); night is signalled by a bold red font on the unfilled reg cell below the label.
+ * @param {{station: string, nightShiftRequired: boolean}} opts
+ * @param {object} colors CONFIG.COLORS
+ * @returns {{labelBg: string, labelFont: string, bold: true, regFont: string|null, regBold: boolean}}
+ */
+function resolvePhaseStyle(opts, colors) {
+  var labelBg = stationFill(opts.station, colors);
+  return {
+    labelBg: labelBg,
+    labelFont: pickFontColor(labelBg),
+    bold: true,
+    regFont: opts.nightShiftRequired ? colors.NIGHT_REG_FONT : null,
+    regBold: !!opts.nightShiftRequired
+  };
+}
+
 /**
  * Resolves every style decision for one check row.
- * @param {{acType: string, isChk: boolean, nightShiftRequired: boolean, assigned: boolean, changed: boolean}} opts
+ * @param {{acType: string, isChk: boolean, nightShiftRequired: boolean, assigned: boolean, changed: boolean, fill?: string}} opts
+ *   `fill`, when given, overrides the A/C-type bar color (used for station-colored Other short checks).
  * @param {object} colors CONFIG.COLORS
  * @returns {{barColor: string, labelBg: string, labelFont: string, bold: boolean,
  *            border: null|{color: string, style: string}}}
@@ -55,6 +111,7 @@ function resolveCheckStyle(opts, colors) {
     case "B787": barColor = colors.B787; break;
     default: barColor = colors.DEFAULT; break;
   }
+  if (opts.fill) barColor = opts.fill;
   var labelBg = opts.nightShiftRequired ? colors.NIGHT_SHIFT_FLAG : barColor;
   var border = null;
   if (opts.changed) border = { color: colors.CHANGE_HIGHLIGHT, style: "SOLID_THICK" };
@@ -87,6 +144,9 @@ if (typeof module !== "undefined" && module.exports) {
     relativeLuminance: relativeLuminance,
     contrastRatio: contrastRatio,
     pickFontColor: pickFontColor,
+    colorDistance: colorDistance,
+    stationFill: stationFill,
+    resolvePhaseStyle: resolvePhaseStyle,
     resolveCheckStyle: resolveCheckStyle,
     orderBorders: orderBorders
   };
