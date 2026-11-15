@@ -69,9 +69,23 @@ function computeScheduleLayout(opts) {
   };
 }
 
+/**
+ * Row order for a check block: one continuous staircase. Start day, then end day
+ * (earlier-ending first), then reg. Rows are schedule arrays whose FROM/TO (idx 3/4)
+ * are already day-of-month numbers; reg is idx 1.
+ */
+function compareScheduleRows(a, b) {
+  if (a[3] !== b[3]) return a[3] - b[3];
+  if (a[4] !== b[4]) return a[4] - b[4];
+  var ra = String(a[1]);
+  var rb = String(b[1]);
+  return ra < rb ? -1 : (ra > rb ? 1 : 0);
+}
+
 // Allow `node test/scheduleLayout.test.js` to require() this file, while GAS still sees plain globals.
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
+    compareScheduleRows: compareScheduleRows,
     PHASE_MIN_ROWS: PHASE_MIN_ROWS,
     assignPhaseSlots: assignPhaseSlots,
     computeScheduleLayout: computeScheduleLayout

@@ -187,7 +187,8 @@ function runUpdateACSchedules() {
     var phaseChk = [];
     var otherShort = [];
     for (var i = 0; i < filteredData_EA.length; i++) {
-      if ((filteredData_EA[i][SCHEDULE_INDEX.PJID] + "").indexOf("CHK") !== -1) {
+      var eaPjid = filteredData_EA[i][SCHEDULE_INDEX.PJID] + "";
+      if (eaPjid.indexOf("TOW") === -1 && eaPjid.indexOf("CHK") !== -1) {
         phaseChk.push(filteredData_EA[i]);
       } else {
         otherShort.push(filteredData_EA[i]);
@@ -198,12 +199,22 @@ function runUpdateACSchedules() {
     var filteredDataSTO = [];
 
     for (var i = 0; i < filteredData.length; i++) {
-      if ((filteredData[i][SCHEDULE_INDEX.PJID] + "").indexOf("STO") !== -1) {
+      var longPjid = filteredData[i][SCHEDULE_INDEX.PJID] + "";
+      if (longPjid.indexOf("STO") !== -1) {
         filteredDataSTO.push(filteredData[i]);
+      } else if (longPjid.indexOf("TOW") !== -1) {
+        // TOW WPs belong with the short checks whatever their TAT.
+        otherShort.push(filteredData[i]);
       } else {
         filteredDataNormal.push(filteredData[i]);
       }
     }
+
+    // Single staircase per block (start day, end day, reg); also re-orders the long-TAT TOW rows
+    // appended to otherShort.
+    filteredDataNormal.sort(compareScheduleRows);
+    otherShort.sort(compareScheduleRows);
+    filteredDataSTO.sort(compareScheduleRows);
 
     // One row cursor decides every section's position (see ScheduleLayout.js), so blocks can't overlap.
     var phaseCols = phaseChk.map(function (row) { return CONFIG.ROSTER.LEFT_COL - 1 + row[SCHEDULE_INDEX.FROM]; });

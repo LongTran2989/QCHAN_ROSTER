@@ -132,6 +132,19 @@ test("computeScheduleLayout with zero counts everywhere is still valid", functio
   assert.strictEqual(l.stoStartRow, l.endOfListRow + 1);
 });
 
+test("compareScheduleRows: start day, then end day, then reg, mixing A/C types", function () {
+  // [type, reg, check, from, to]
+  var rows = [
+    ["A350", "Z", "", 5, 9],
+    ["A321", "B", "", 1, 8],
+    ["A350", "A", "", 1, 3],
+    ["A321", "C", "", 1, 8],
+    ["A350", "Y", "", 5, 6]
+  ];
+  var order = rows.slice().sort(Layout.compareScheduleRows).map(function (r) { return r[1]; });
+  assert.deepStrictEqual(order, ["A", "B", "C", "Y", "Z"]);
+});
+
 // --- report ---
 
 console.log(passed + " passed, " + failed.length + " failed");
