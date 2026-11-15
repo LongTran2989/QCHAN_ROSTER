@@ -189,19 +189,22 @@ function runUpdateACSchedules() {
     var filteredDataNormal = [];
     var filteredDataSTO = [];
 
-    // WP Desc starting with "D-A" always belongs in NORMAL CHECKS, as an A350 (sorted and coloured so).
+    // A PJID starting with "D-A" always belongs in NORMAL CHECKS, as an A350 (sorted and
+    // coloured so). Checked first, so it wins over the Phase / STO / TOW / Other rules.
     function isDAWP(row) {
-      if ((row[SCHEDULE_INDEX.AC_CHECK] + "").trim().toUpperCase().indexOf("D-A") !== 0) return false;
+      // Prefix match on the PJID (WP No.), e.g. "D-AIXQ_H-26"; "D-A" is the shared part so other
+      // similar PJIDs are caught too.
+      if ((row[SCHEDULE_INDEX.PJID] + "").trim().toUpperCase().indexOf("D-A") !== 0) return false;
       row[SCHEDULE_INDEX.AC_TYPE] = "A350";
       return true;
     }
 
     for (var i = 0; i < filteredData_EA.length; i++) {
       var eaPjid = filteredData_EA[i][SCHEDULE_INDEX.PJID] + "";
-      if (eaPjid.indexOf("TOW") === -1 && eaPjid.indexOf("CHK") !== -1) {
-        phaseChk.push(filteredData_EA[i]);
-      } else if (isDAWP(filteredData_EA[i])) {
+      if (isDAWP(filteredData_EA[i])) {
         filteredDataNormal.push(filteredData_EA[i]);
+      } else if (eaPjid.indexOf("TOW") === -1 && eaPjid.indexOf("CHK") !== -1) {
+        phaseChk.push(filteredData_EA[i]);
       } else {
         otherShort.push(filteredData_EA[i]);
       }
@@ -211,9 +214,11 @@ function runUpdateACSchedules() {
       var longPjid = filteredData[i][SCHEDULE_INDEX.PJID] + "";
       var longIsSTO = longPjid.indexOf("STO") !== -1;
       var longIsCHK = longPjid.indexOf("CHK") !== -1;
-      if (longIsSTO && !longIsCHK) {
+      if (isDAWP(filteredData[i])) {
+        filteredDataNormal.push(filteredData[i]);
+      } else if (longIsSTO && !longIsCHK) {
         filteredDataSTO.push(filteredData[i]);
-      } else if (isDAWP(filteredData[i]) || (longIsCHK && (longIsSTO || longPjid.indexOf("TOW") === -1))) {
+      } else if (longIsCHK && (longIsSTO || longPjid.indexOf("TOW") === -1)) {
         // CHK WPs are Normal (a STO that is also a CHK included; TOW CHK stays in OTHER CHECKS).
         filteredDataNormal.push(filteredData[i]);
       } else {
