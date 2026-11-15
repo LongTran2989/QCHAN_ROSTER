@@ -182,7 +182,7 @@ function runUpdateACSchedules() {
 
     // --- SPLIT THE LISTS ---
     // Short-TAT (0.5 / 1 day) WPs: only CHK ones are Phase checks (staff attend in person); the
-    // rest render as an "OTHER SHORT CHECKS" group under NORMAL CHECKS. Both keep comparator order.
+    // rest render in the "OTHER CHECKS" group under NORMAL CHECKS (which also takes long non-CHK WPs).
     filteredData_EA = filteredData_EA.sort(comparator);
     var phaseChk = [];
     var otherShort = [];
@@ -202,17 +202,16 @@ function runUpdateACSchedules() {
       var longPjid = filteredData[i][SCHEDULE_INDEX.PJID] + "";
       if (longPjid.indexOf("STO") !== -1) {
         filteredDataSTO.push(filteredData[i]);
-      } else if (longPjid.indexOf("TOW") !== -1) {
-        // TOW WPs belong with the short checks whatever their TAT.
-        otherShort.push(filteredData[i]);
-      } else {
+      } else if (longPjid.indexOf("TOW") === -1 && longPjid.indexOf("CHK") !== -1) {
         filteredDataNormal.push(filteredData[i]);
+      } else {
+        // Long-TAT non-CHK WPs (incl. TOW) join the other short checks in OTHER CHECKS.
+        otherShort.push(filteredData[i]);
       }
     }
 
-    // Single staircase per block (start day, end day, reg); also re-orders the long-TAT TOW rows
-    // appended to otherShort.
-    filteredDataNormal.sort(compareScheduleRows);
+    // NORMAL: one staircase per A/C type (A321 first, then A350, ...). OTHER / STO: a single staircase.
+    filteredDataNormal.sort(compareByTypeThenStair);
     otherShort.sort(compareScheduleRows);
     filteredDataSTO.sort(compareScheduleRows);
 
@@ -270,8 +269,10 @@ function runUpdateACSchedules() {
     }
 
     // Phase labels sit in a single day cell: clip (full text is in the cell note) and keep rows fixed-height.
-    currentSheet.getRange(layout.phaseStartRow, CONFIG.ROSTER.LEFT_COL, layout.phaseRowCount, 33).setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP).setVerticalAlignment("top");
-    currentSheet.setRowHeights(layout.phaseStartRow, layout.phaseRowCount, CONFIG.LAYOUT.ROW_HEIGHT);
+    if (layout.phaseRowCount > 0) { // Sheets rejects zero-row ranges (no Phase WPs this run)
+      currentSheet.getRange(layout.phaseStartRow, CONFIG.ROSTER.LEFT_COL, layout.phaseRowCount, 33).setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP).setVerticalAlignment("top");
+      currentSheet.setRowHeights(layout.phaseStartRow, layout.phaseRowCount, CONFIG.LAYOUT.ROW_HEIGHT);
+    }
 
     // --- NORMAL CHECKS LOGIC ---
     renderPayloads.push({range: [layout.normalHeaderRow, CONFIG.ROSTER.LEFT_COL - 1], val: "NORMAL CHECKS", bg: null, color: null, bold: false});
@@ -280,7 +281,7 @@ function runUpdateACSchedules() {
 
     // --- OTHER SHORT CHECKS (non-CHK short-TAT WPs; station-colored; exported with Normal by Utils.js) ---
     if (otherShort.length > 0) {
-      renderPayloads.push({range: [layout.otherHeaderRow, CONFIG.ROSTER.LEFT_COL - 1], val: "OTHER SHORT CHECKS", bg: null, color: null, bold: false});
+      renderPayloads.push({range: [layout.otherHeaderRow, CONFIG.ROSTER.LEFT_COL - 1], val: "OTHER CHECKS", bg: null, color: null, bold: false});
       drawChecksBlock(otherShort, layout.otherStartRow, assignedPersonByPjid, highlightedPjids, renderPayloads, shiftInfoByRow, currentSheet, borderOps, {useStationFill: true});
     }
 

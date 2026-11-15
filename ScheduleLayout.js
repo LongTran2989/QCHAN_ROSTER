@@ -2,12 +2,9 @@
  * Pure layout math for the A/C Schedule block (no SpreadsheetApp dependency, so it can be
  * exercised outside Apps Script; see test/scheduleLayout.test.js).
  *
- * Section order: PHASE CHECKS -> NORMAL CHECKS -> OTHER SHORT CHECKS -> END OF LIST -> STO.
+ * Section order: PHASE CHECKS -> NORMAL CHECKS -> OTHER CHECKS -> END OF LIST -> STO.
  * One row cursor drives all positions, so no block can land inside another.
  */
-
-// Minimum number of rows reserved for the Phase block (matches the historical layout).
-var PHASE_MIN_ROWS = 9;
 
 /**
  * Stacks Phase WPs that start on the same day column: the i-th entry gets slot k when k earlier
@@ -39,7 +36,9 @@ function assignPhaseSlots(cols) {
  */
 function computeScheduleLayout(opts) {
   var phaseStartRow = opts.phaseHeaderRow + 1;
-  var phaseRowCount = Math.max(PHASE_MIN_ROWS, 2 * opts.phaseDepth + 1);
+  // Exactly the rows the stacked Phase entries use (label + reg per level), so NORMAL CHECKS
+  // starts on the row right after the last Phase line. 0 when there are no Phase WPs.
+  var phaseRowCount = 2 * opts.phaseDepth;
   var normalHeaderRow = phaseStartRow + phaseRowCount;
   var normalStartRow = normalHeaderRow + 1;
 
@@ -82,11 +81,19 @@ function compareScheduleRows(a, b) {
   return ra < rb ? -1 : (ra > rb ? 1 : 0);
 }
 
+/** A/C type ascending (A321 before A350), then the staircase order within each type. */
+function compareByTypeThenStair(a, b) {
+  var ta = String(a[0]);
+  var tb = String(b[0]);
+  if (ta !== tb) return ta < tb ? -1 : 1;
+  return compareScheduleRows(a, b);
+}
+
 // Allow `node test/scheduleLayout.test.js` to require() this file, while GAS still sees plain globals.
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     compareScheduleRows: compareScheduleRows,
-    PHASE_MIN_ROWS: PHASE_MIN_ROWS,
+    compareByTypeThenStair: compareByTypeThenStair,
     assignPhaseSlots: assignPhaseSlots,
     computeScheduleLayout: computeScheduleLayout
   };

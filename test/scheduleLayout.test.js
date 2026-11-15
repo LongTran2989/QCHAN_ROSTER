@@ -32,10 +32,6 @@ function layout(over) {
   return Layout.computeScheduleLayout(base);
 }
 
-test("PHASE_MIN_ROWS is 9", function () {
-  assert.strictEqual(Layout.PHASE_MIN_ROWS, 9);
-});
-
 test("assignPhaseSlots stacks same-day entries and counts depth", function () {
   var r = Layout.assignPhaseSlots([5, 5, 5, 7, 5, 7]);
   assert.deepStrictEqual(r.slots, [0, 1, 2, 0, 3, 1]);
@@ -68,34 +64,35 @@ test("computeScheduleLayout reproduces today's rows with no Other short group", 
   var l = layout();
   assert.strictEqual(l.phaseHeaderRow, 76);
   assert.strictEqual(l.phaseStartRow, 77);
-  assert.strictEqual(l.normalHeaderRow, 86);
-  assert.strictEqual(l.normalStartRow, 87);
+  assert.strictEqual(l.normalHeaderRow, 79);
+  assert.strictEqual(l.normalStartRow, 80);
   assert.strictEqual(l.otherHeaderRow, null);
   assert.strictEqual(l.otherStartRow, null);
-  assert.strictEqual(l.endOfListRow, 99);
-  assert.strictEqual(l.stoStartRow, 100);
+  assert.strictEqual(l.endOfListRow, 92);
+  assert.strictEqual(l.stoStartRow, 93);
 });
 
 test("lastRow is the last row the layout writes (END OF LIST when there is no STO)", function () {
-  assert.strictEqual(layout().lastRow, 102);
-  assert.strictEqual(layout({ stoCount: 0 }).lastRow, 99);
-  assert.strictEqual(layout({ otherCount: 4, stoCount: 2 }).lastRow, 107);
+  assert.strictEqual(layout().lastRow, 95);
+  assert.strictEqual(layout({ stoCount: 0 }).lastRow, 92);
+  assert.strictEqual(layout({ otherCount: 4, stoCount: 2 }).lastRow, 100);
 });
 
 test("computeScheduleLayout places the Other short group between Normal and END OF LIST", function () {
   var l = layout({ otherCount: 4 });
-  assert.strictEqual(l.otherHeaderRow, 98);
-  assert.strictEqual(l.otherStartRow, 99);
-  assert.strictEqual(l.endOfListRow, 105);
-  assert.strictEqual(l.stoStartRow, 106);
+  assert.strictEqual(l.otherHeaderRow, 91);
+  assert.strictEqual(l.otherStartRow, 92);
+  assert.strictEqual(l.endOfListRow, 98);
+  assert.strictEqual(l.stoStartRow, 99);
 });
 
-test("phaseRowCount is 9 for depth 0 and 1, and grows 2 rows per extra level", function () {
-  assert.strictEqual(layout({ phaseDepth: 0 }).phaseRowCount, 9);
-  assert.strictEqual(layout({ phaseDepth: 1 }).phaseRowCount, 9);
+test("NORMAL CHECKS header sits on the row right after the last Phase line", function () {
+  assert.strictEqual(layout({ phaseDepth: 0 }).phaseRowCount, 0);
+  assert.strictEqual(layout({ phaseDepth: 0 }).normalHeaderRow, 77);
+  assert.strictEqual(layout({ phaseDepth: 1 }).phaseRowCount, 2);
   var l = layout({ phaseDepth: 6 });
-  assert.strictEqual(l.phaseRowCount, 13);
-  assert.strictEqual(l.normalHeaderRow, 77 + 13);
+  assert.strictEqual(l.phaseRowCount, 12);
+  assert.strictEqual(l.normalHeaderRow, l.phaseStartRow + 2 * 5 + 1 + 1);
 });
 
 test("computeScheduleLayout: sections never overlap (property)", function () {
@@ -143,6 +140,17 @@ test("compareScheduleRows: start day, then end day, then reg, mixing A/C types",
   ];
   var order = rows.slice().sort(Layout.compareScheduleRows).map(function (r) { return r[1]; });
   assert.deepStrictEqual(order, ["A", "B", "C", "Y", "Z"]);
+});
+
+test("compareByTypeThenStair: A/C type groups first, staircase within each", function () {
+  var rows = [
+    ["A350", "Z", "", 1, 4],
+    ["A321", "B", "", 6, 8],
+    ["A350", "A", "", 2, 3],
+    ["A321", "C", "", 1, 2]
+  ];
+  var order = rows.slice().sort(Layout.compareByTypeThenStair).map(function (r) { return r[1]; });
+  assert.deepStrictEqual(order, ["C", "B", "Z", "A"]);
 });
 
 // --- report ---
