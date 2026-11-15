@@ -117,7 +117,7 @@ function applyAssignment(pjid, personName) {
   targetRow.assignedPerson = newPerson;
   writeSnapshot(snapshotSheet, snapshotRows);
 
-  // The check label lives at "[star ]AC_CHECK[ moon][ middot ShortName]".
+  // The check label lives at "[star ][REG ]AC_CHECK[ moon][ middot ShortName]".
   var labelCol = CONFIG.ROSTER.LEFT_COL - 1 + targetRow.fromDayCol;
   var labelCell = currentSheet.getRange(row, labelCol);
   var shortName = newPerson ? toInitialsWithFirstName(newPerson) : "";
