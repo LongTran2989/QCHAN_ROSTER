@@ -180,65 +180,23 @@ function runUpdateACSchedules() {
         .concat(diffResult.changed.map(function (e) { return e.pjid; }))
     );
 
-    // USER FEEDBACK: Assure clean slate format over drawing area
-    var areaToClear = currentSheet.getRange(CONFIG.ROSTER.LOWER_ROW + 3, CONFIG.ROSTER.LEFT_COL - 1, 200, 33 + 7);
-    areaToClear.clearContent();
-    areaToClear.clearFormat();
-
-    // Batch Output Definitions
-    var renderPayloads = [];
-
-    // --- PHASE CHECKS LOGIC ---
+    // --- SPLIT THE LISTS ---
+    // Short-TAT (0.5 / 1 day) WPs: only CHK ones are Phase checks (staff attend in person); the
+    // rest render as an "OTHER SHORT CHECKS" group under NORMAL CHECKS. Both keep comparator order.
     filteredData_EA = filteredData_EA.sort(comparator);
-    renderPayloads.push({range: [CONFIG.ROSTER.LOWER_ROW + 3, CONFIG.ROSTER.LEFT_COL - 1], val: "PHASE CHECKS", bg: null, color: null, bold: false});
-
-    var eaCheckBlockLength = 6;
-    var eaStartRow = CONFIG.ROSTER.LOWER_ROW + 3 + 1;
-    var paintRow = eaStartRow;
-
-    // Build EA Checks iteratively
+    var phaseChk = [];
+    var otherShort = [];
     for (var i = 0; i < filteredData_EA.length; i++) {
-        var paintCol = CONFIG.ROSTER.LEFT_COL - 1 + filteredData_EA[i][SCHEDULE_INDEX.FROM];
-        
-        // Offset logic if there are collisions
-        if (renderPayloads.some(p => p.range[0] === paintRow && p.range[1] === paintCol)) {
-            paintRow += 2;
-            eaCheckBlockLength = paintRow - CONFIG.ROSTER.LOWER_ROW + 1;
-        } else {
-            paintRow = CONFIG.ROSTER.LOWER_ROW + 3 + 1;
-        }
-
-        var isHank = filteredData_EA[i][SCHEDULE_INDEX.STATION] === "L-HAN";
-        var bgColor = isHank ? CONFIG.COLORS.EA_LAN : CONFIG.COLORS.EA_HAN;
-        
-        var isChk = (filteredData_EA[i][SCHEDULE_INDEX.PJID] + "").indexOf("CHK") !== -1;
-
-        var eaShiftInfo = shiftInfoByRow.get(filteredData_EA[i]);
-        var eaLabel = buildCheckLabel({acCheck: filteredData_EA[i][SCHEDULE_INDEX.AC_CHECK], isChk: isChk, shiftInfo: eaShiftInfo});
-        var eaNote = (filteredData_EA[i][SCHEDULE_INDEX.NOTE] ? filteredData_EA[i][SCHEDULE_INDEX.NOTE] + "\n\n" : "") + (eaShiftInfo ? buildShiftNote(eaShiftInfo) : "");
-        var eaNight = !!(eaShiftInfo && eaShiftInfo.nightShiftRequired);
-        var eaBg = eaNight ? CONFIG.COLORS.NIGHT_SHIFT_FLAG : bgColor;
-
-        // Font is derived from the fill so the label is always legible (never red-on-red).
-        renderPayloads.push({range: [paintRow, paintCol], val: eaLabel, bg: eaBg, color: pickFontColor(eaBg), bold: isChk || eaNight, note: eaNote});
-        
-        var nsLabel = filteredData_EA[i][SCHEDULE_INDEX.TAT] == "0.5" ? `${filteredData_EA[i][SCHEDULE_INDEX.AC_REG]} NS` : filteredData_EA[i][SCHEDULE_INDEX.AC_REG];
-        // The reg cell is clipped like the label above it, so carry the full text in a note too.
-        renderPayloads.push({range: [paintRow + 1, paintCol], val: nsLabel, bg: null, color: null, bold: false, note: nsLabel + ""});
+      if ((filteredData_EA[i][SCHEDULE_INDEX.PJID] + "").indexOf("CHK") !== -1) {
+        phaseChk.push(filteredData_EA[i]);
+      } else {
+        otherShort.push(filteredData_EA[i]);
+      }
     }
-
-    eaCheckBlockLength += 5;
-    // Phase labels sit in a single day cell: clip (full text is in the cell note) and keep rows fixed-height.
-    var eaBlockRows = Math.max(1, eaCheckBlockLength - 2);
-    currentSheet.getRange(eaStartRow, CONFIG.ROSTER.LEFT_COL, eaBlockRows, 33).setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP).setVerticalAlignment("top");
-    currentSheet.setRowHeights(eaStartRow, eaBlockRows, CONFIG.LAYOUT.ROW_HEIGHT);
-
-    // --- NORMAL CHECKS LOGIC ---
-    var normalCheckStartRow = CONFIG.ROSTER.LOWER_ROW + 3 + eaCheckBlockLength;
 
     var filteredDataNormal = [];
     var filteredDataSTO = [];
-    
+
     for (var i = 0; i < filteredData.length; i++) {
       if ((filteredData[i][SCHEDULE_INDEX.PJID] + "").indexOf("STO") !== -1) {
         filteredDataSTO.push(filteredData[i]);
@@ -247,16 +205,78 @@ function runUpdateACSchedules() {
       }
     }
 
-    renderPayloads.push({range: [normalCheckStartRow - 1, CONFIG.ROSTER.LEFT_COL - 1], val: "NORMAL CHECKS", bg: null, color: null, bold: false});
-    var borderOps = [];
-    drawChecksBlock(filteredDataNormal, normalCheckStartRow, assignedPersonByPjid, highlightedPjids, renderPayloads, shiftInfoByRow, currentSheet, borderOps);
+    // One row cursor decides every section's position (see ScheduleLayout.js), so blocks can't overlap.
+    var phaseCols = phaseChk.map(function (row) { return CONFIG.ROSTER.LEFT_COL - 1 + row[SCHEDULE_INDEX.FROM]; });
+    var phasePacking = assignPhaseSlots(phaseCols);
+    var layout = computeScheduleLayout({
+      phaseHeaderRow: CONFIG.ROSTER.LOWER_ROW + 3,
+      phaseDepth: phasePacking.depth,
+      normalCount: filteredDataNormal.length,
+      otherCount: otherShort.length,
+      stoCount: filteredDataSTO.length
+    });
 
-    var listEndRow = normalCheckStartRow + filteredDataNormal.length + 2;
-    renderPayloads.push({range: [listEndRow, 2], val: "END OF LIST", bg: null, color: null, bold: false});
+    // USER FEEDBACK: Assure clean slate format over drawing area. Sized from the layout so a tall
+    // layout never leaves stale content/format behind; refuse (before touching the sheet) if the
+    // layout would outgrow the rows the sidebar scans for PJIDs (findWPRowsByPJID).
+    var drawStartRow = CONFIG.ROSTER.LOWER_ROW + 3;
+    var rowsNeeded = layout.lastRow - drawStartRow + 1;
+    if (rowsNeeded > CONFIG.LAYOUT.MAX_DRAW_ROWS) {
+      throw new Error("The schedule needs " + rowsNeeded + " rows below the roster but at most " +
+        CONFIG.LAYOUT.MAX_DRAW_ROWS + " are supported. Roster was not changed.");
+    }
+    var areaToClear = currentSheet.getRange(drawStartRow, CONFIG.ROSTER.LEFT_COL - 1, Math.max(200, rowsNeeded), 33 + 7);
+    areaToClear.clearContent();
+    areaToClear.clearFormat();
+
+    // Batch Output Definitions
+    var renderPayloads = [];
+
+    // --- PHASE CHECKS LOGIC ---
+    renderPayloads.push({range: [layout.phaseHeaderRow, CONFIG.ROSTER.LEFT_COL - 1], val: "PHASE CHECKS", bg: null, color: null, bold: false});
+
+    for (var i = 0; i < phaseChk.length; i++) {
+        var phaseRow = phaseChk[i];
+        var paintRow = layout.phaseStartRow + 2 * phasePacking.slots[i];
+        var paintCol = phaseCols[i];
+
+        var phaseShiftInfo = shiftInfoByRow.get(phaseRow);
+        var phaseNight = !!(phaseShiftInfo && phaseShiftInfo.nightShiftRequired);
+        var phaseStyle = resolvePhaseStyle({station: phaseRow[SCHEDULE_INDEX.STATION], nightShiftRequired: phaseNight}, CONFIG.COLORS);
+
+        // Phase labels: no star (every Phase WP is a CHK) and no moon; night shows on the reg cell below.
+        var phaseLabel = buildCheckLabel({acCheck: phaseRow[SCHEDULE_INDEX.AC_CHECK], isChk: false, shiftInfo: null});
+        var phaseNote = (phaseRow[SCHEDULE_INDEX.NOTE] ? phaseRow[SCHEDULE_INDEX.NOTE] + "\n\n" : "") + (phaseShiftInfo ? buildShiftNote(phaseShiftInfo) : "");
+
+        // Font is derived from the station fill so the label is always legible (never red-on-colour).
+        renderPayloads.push({range: [paintRow, paintCol], val: phaseLabel, bg: phaseStyle.labelBg, color: phaseStyle.labelFont, bold: phaseStyle.bold, note: phaseNote});
+
+        var nsLabel = buildRegLabel(phaseRow[SCHEDULE_INDEX.AC_REG], phaseRow[SCHEDULE_INDEX.TAT]);
+        // The reg cell is clipped like the label above it, so carry the full text in a note too.
+        // It is unfilled: night coverage is the bold red font here (red never sits on a colored fill).
+        renderPayloads.push({range: [paintRow + 1, paintCol], val: nsLabel, bg: null, color: phaseStyle.regFont, bold: phaseStyle.regBold, note: nsLabel + ""});
+    }
+
+    // Phase labels sit in a single day cell: clip (full text is in the cell note) and keep rows fixed-height.
+    currentSheet.getRange(layout.phaseStartRow, CONFIG.ROSTER.LEFT_COL, layout.phaseRowCount, 33).setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP).setVerticalAlignment("top");
+    currentSheet.setRowHeights(layout.phaseStartRow, layout.phaseRowCount, CONFIG.LAYOUT.ROW_HEIGHT);
+
+    // --- NORMAL CHECKS LOGIC ---
+    renderPayloads.push({range: [layout.normalHeaderRow, CONFIG.ROSTER.LEFT_COL - 1], val: "NORMAL CHECKS", bg: null, color: null, bold: false});
+    var borderOps = [];
+    drawChecksBlock(filteredDataNormal, layout.normalStartRow, assignedPersonByPjid, highlightedPjids, renderPayloads, shiftInfoByRow, currentSheet, borderOps);
+
+    // --- OTHER SHORT CHECKS (non-CHK short-TAT WPs; station-colored; exported with Normal by Utils.js) ---
+    if (otherShort.length > 0) {
+      renderPayloads.push({range: [layout.otherHeaderRow, CONFIG.ROSTER.LEFT_COL - 1], val: "OTHER SHORT CHECKS", bg: null, color: null, bold: false});
+      drawChecksBlock(otherShort, layout.otherStartRow, assignedPersonByPjid, highlightedPjids, renderPayloads, shiftInfoByRow, currentSheet, borderOps, {useStationFill: true});
+    }
+
+    // Utils.js (sheet export) parses this exact marker in column B.
+    renderPayloads.push({range: [layout.endOfListRow, 2], val: "END OF LIST", bg: null, color: null, bold: false});
 
     // --- STO CHECKS LOGIC ---
-    var stoStartRow = listEndRow + 1;
-    drawChecksBlock(filteredDataSTO, stoStartRow, assignedPersonByPjid, highlightedPjids, renderPayloads, shiftInfoByRow, currentSheet, borderOps);
+    drawChecksBlock(filteredDataSTO, layout.stoStartRow, assignedPersonByPjid, highlightedPjids, renderPayloads, shiftInfoByRow, currentSheet, borderOps);
 
     // Dashed (unassigned) first, solid thick (changed) last so a changed row's box is never overdrawn
     // by a neighbouring unassigned row's shared edge.
@@ -294,16 +314,18 @@ function runUpdateACSchedules() {
 }
 
 /**
- * Helper to build Grid payloads for block definitions
+ * Helper to build Grid payloads for block definitions.
+ * @param {{useStationFill?: boolean}} [options] useStationFill: color bars by HAN / L-HAN instead of A/C type.
  */
-function drawChecksBlock(dataBlock, startRow, assignedPersonByPjid, highlightedPjids, renderQueue, shiftInfoByRow, currentSheet, borderOps) {
+function drawChecksBlock(dataBlock, startRow, assignedPersonByPjid, highlightedPjids, renderQueue, shiftInfoByRow, currentSheet, borderOps, options) {
   for (var i = 0; i < dataBlock.length; i++) {
     var pjid = dataBlock[i][SCHEDULE_INDEX.PJID] + "";
     var acReg = dataBlock[i][SCHEDULE_INDEX.AC_REG];
     var assignedPerson = assignedPersonByPjid[pjid] || "";
     var shortName = assignedPerson ? toInitialsWithFirstName(assignedPerson) : "";
 
-    renderQueue.push({range: [startRow + i, CONFIG.ROSTER.LEFT_COL - 1], val: acReg});
+    // AC Reg column: keeps the "NS" marker for 0.5-day TAT rows (Other short checks).
+    renderQueue.push({range: [startRow + i, CONFIG.ROSTER.LEFT_COL - 1], val: buildRegLabel(acReg, dataBlock[i][SCHEDULE_INDEX.TAT])});
 
     var isChk = (dataBlock[i][SCHEDULE_INDEX.PJID] + "").indexOf("CHK") !== -1;
 
@@ -313,12 +335,14 @@ function drawChecksBlock(dataBlock, startRow, assignedPersonByPjid, highlightedP
       isChk: isChk,
       nightShiftRequired: !!(shiftInfo && shiftInfo.nightShiftRequired),
       assigned: !!assignedPerson,
-      changed: highlightedPjids.has(pjid)
+      changed: highlightedPjids.has(pjid),
+      // Other short checks use the HAN / L-HAN station fill instead of the A/C-type color.
+      fill: (options && options.useStationFill) ? stationFill(dataBlock[i][SCHEDULE_INDEX.STATION], CONFIG.COLORS) : undefined
     }, CONFIG.COLORS);
     var barColor = style.barColor;
 
     // Single-line label (assignee inline) so short-TAT rows keep the fixed row height.
-    var checkLabel = buildCheckLabel({acCheck: dataBlock[i][SCHEDULE_INDEX.AC_CHECK], isChk: isChk, shiftInfo: shiftInfo, assigneeShort: shortName});
+    var checkLabel = buildCheckLabel({acReg: acReg, acCheck: dataBlock[i][SCHEDULE_INDEX.AC_CHECK], isChk: isChk, shiftInfo: shiftInfo, assigneeShort: shortName});
     var checkNote = (dataBlock[i][SCHEDULE_INDEX.NOTE] ? dataBlock[i][SCHEDULE_INDEX.NOTE] + "\n\n" : "") + (shiftInfo ? buildShiftNote(shiftInfo) : "");
 
     // Font color comes from the label cell's final fill (night red or bar color), never red text.

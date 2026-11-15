@@ -75,15 +75,15 @@ function shiftName(shift) {
 }
 
 /**
- * Multi-line tooltip text for a WP's start/end, in Hanoi local time (UTC+7, same
- * offset as the Bangkok math above -- only the displayed label differs).
+ * Multi-line tooltip text for a WP's start/end: times and shift names only (the
+ * timezone is not shown to the user).
  * @param {ReturnType<typeof classifyWP>} shiftInfo
  * @returns {string}
  */
 function buildShiftNote(shiftInfo) {
   var lines = [
-    "Start: " + formatBangkokTime(shiftInfo.fromBangkok) + " (" + shiftName(shiftInfo.fromShift) + " shift, Hanoi time)",
-    "End: " + formatBangkokTime(shiftInfo.toBangkok) + " (" + shiftName(shiftInfo.toShift) + " shift, Hanoi time)"
+    "Start: " + formatBangkokTime(shiftInfo.fromBangkok) + " (" + shiftName(shiftInfo.fromShift) + " shift)",
+    "End: " + formatBangkokTime(shiftInfo.toBangkok) + " (" + shiftName(shiftInfo.toShift) + " shift)"
   ];
   if (shiftInfo.nightShiftRequired) {
     lines.push("⚠ Night shift coverage required");
@@ -102,16 +102,28 @@ function buildShiftLabelSuffix(shiftInfo) {
 }
 
 /**
- * Single-line label: [star ]<check><moon>[ middot <assignee>]. Newlines are collapsed to spaces so
- * the cell never needs to wrap (keeps short-TAT rows at the fixed row height).
- * @param {{acCheck: string, isChk: boolean, shiftInfo: object|null, assigneeShort?: string}} opts
+ * Single-line label: [star ][<reg> ]<check>[ moon][ middot <assignee>]. Newlines are collapsed to
+ * spaces so the cell never needs to wrap (keeps short-TAT rows at the fixed row height). An
+ * omitted/empty acReg adds nothing.
+ * @param {{acCheck: string, isChk: boolean, shiftInfo: object|null, assigneeShort?: string, acReg?: string}} opts
  * @returns {string}
  */
 function buildCheckLabel(opts) {
   var flat = function (s) { return String(s == null ? "" : s).replace(/\s*[\r\n]+\s*/g, " "); };
-  var label = (opts.isChk ? "★ " : "") + flat(opts.acCheck) + buildShiftLabelSuffix(opts.shiftInfo);
+  var reg = flat(opts.acReg).trim();
+  var label = (opts.isChk ? "★ " : "") + (reg ? reg + " " : "") + flat(opts.acCheck) + buildShiftLabelSuffix(opts.shiftInfo);
   if (opts.assigneeShort) label += " · " + flat(opts.assigneeShort);
   return label;
+}
+
+/**
+ * Text for a reg cell: the reg, plus " NS" for 0.5-day TAT WPs.
+ * @param {string} acReg
+ * @param {number|string} tat
+ * @returns {string}
+ */
+function buildRegLabel(acReg, tat) {
+  return String(tat) === "0.5" ? acReg + " NS" : acReg;
 }
 
 /**
@@ -140,6 +152,7 @@ if (typeof module !== "undefined" && module.exports) {
     buildShiftNote: buildShiftNote,
     buildShiftLabelSuffix: buildShiftLabelSuffix,
     buildCheckLabel: buildCheckLabel,
+    buildRegLabel: buildRegLabel,
     setLabelAssignee: setLabelAssignee
   };
 }

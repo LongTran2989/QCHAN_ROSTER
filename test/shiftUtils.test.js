@@ -140,6 +140,20 @@ test("buildCheckLabel is just the check when plain", function () {
   assert.strictEqual(buildCheckLabel({ acCheck: "4C", isChk: false, shiftInfo: null }), "4C");
 });
 
+test("buildCheckLabel puts the reg after the star and before the check", function () {
+  var label = buildCheckLabel({ acReg: "A350-1", acCheck: "4C", isChk: true, shiftInfo: { nightShiftRequired: true }, assigneeShort: "Nguyen T." });
+  assert.strictEqual(label, "★ A350-1 4C 🌙 · Nguyen T.");
+});
+
+test("buildCheckLabel with a reg and no star", function () {
+  assert.strictEqual(buildCheckLabel({ acReg: "A350-1", acCheck: "4C", isChk: false, shiftInfo: null }), "A350-1 4C");
+});
+
+test("buildCheckLabel never contains a newline, even in the reg", function () {
+  var label = buildCheckLabel({ acReg: "A350\n-1", acCheck: "4C", isChk: false, shiftInfo: null });
+  assert.ok(label.indexOf("\n") === -1, JSON.stringify(label));
+});
+
 test("buildCheckLabel never contains a newline", function () {
   var label = buildCheckLabel({ acCheck: "4C\nLONG", isChk: false, shiftInfo: null, assigneeShort: "A\nB" });
   assert.ok(label.indexOf("\n") === -1, JSON.stringify(label));
@@ -148,8 +162,9 @@ test("buildCheckLabel never contains a newline", function () {
 test("buildShiftNote includes both times and the night-shift warning when required", function () {
   var r = classifyWP(utc("2024-01-05T15:00:00Z"), utc("2024-01-05T20:00:00Z"));
   var note = buildShiftNote(r);
-  assert.ok(note.indexOf("Start: 05/01 22:00 (Evening shift, Hanoi time)") !== -1, note);
-  assert.ok(note.indexOf("End: 06/01 03:00 (Morning shift, Hanoi time)") !== -1, note);
+  assert.ok(note.indexOf("Start: 05/01 22:00 (Evening shift)") !== -1, note);
+  assert.ok(note.indexOf("End: 06/01 03:00 (Morning shift)") !== -1, note);
+  assert.ok(note.indexOf("Hanoi") === -1 && note.indexOf("Bangkok") === -1, note);
   assert.ok(note.indexOf("Night shift coverage required") !== -1, note);
 });
 
@@ -159,8 +174,21 @@ test("buildShiftNote omits the warning when night shift isn't required", functio
   assert.ok(note.indexOf("Night shift coverage required") === -1, note);
 });
 
+test("buildRegLabel adds the NS marker for 0.5-day TAT (number or string) only", function () {
+  assert.strictEqual(ShiftUtils.buildRegLabel("A350-1", 0.5), "A350-1 NS");
+  assert.strictEqual(ShiftUtils.buildRegLabel("A350-1", "0.5"), "A350-1 NS");
+  assert.strictEqual(ShiftUtils.buildRegLabel("A350-1", 1), "A350-1");
+  assert.strictEqual(ShiftUtils.buildRegLabel("A350-1", "1"), "A350-1");
+  assert.strictEqual(ShiftUtils.buildRegLabel("A350-1", 12), "A350-1");
+});
+
 test("setLabelAssignee appends the assignee to an unassigned label", function () {
   assert.strictEqual(setLabelAssignee("★ 4C 🌙", "Tran B."), "★ 4C 🌙 · Tran B.");
+});
+
+test("setLabelAssignee keeps star, reg and moon on a new-format label", function () {
+  assert.strictEqual(setLabelAssignee("★ A350-1 4C 🌙", "Tran B."), "★ A350-1 4C 🌙 · Tran B.");
+  assert.strictEqual(setLabelAssignee("A350-1 4C · Nguyen T.", ""), "A350-1 4C");
 });
 
 test("setLabelAssignee replaces an existing assignee", function () {

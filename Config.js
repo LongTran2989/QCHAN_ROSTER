@@ -56,19 +56,22 @@ const CONFIG = {
     A350: "#81D4FA",
     B787: "#FFCC80",
     DEFAULT: "#CE93D8",
-    EA_LAN: "#80DEEA", // L-HAN
-    EA_HAN: "#A5D6A7", // HAN
+    EA_LAN: "#A1887F", // L-HAN (taupe: clearly apart from every A/C-type fill and from HAN green; black text >= 4.5:1)
+    EA_HAN: "#66BB6A", // HAN (green)
     BG_SAT_SUN: "gray",
     BG_NULL: "black",
     WHITE: "white",
     NIGHT_SHIFT_FLAG: "#EF9A9A", // start/end day of a WP needing night-shift coverage (light red: black text stays legible when the label overflows onto neighbouring cells)
+    NIGHT_REG_FONT: "#C62828", // bold red font for the reg under a Phase WP that needs night coverage; ONLY ever on the unfilled (white) reg cell, never on a colored fill
     CHANGE_HIGHLIGHT: "#6A1B9A", // border around a WP row that was added/changed this run
     UNASSIGNED_BORDER: "#424242" // dashed border around a WP row with no assignee
   },
 
   // Fixed row height (px) for schedule rows so long labels never make short checks tall
   LAYOUT: {
-    ROW_HEIGHT: 21
+    ROW_HEIGHT: 21,
+    // Max rows below the roster the schedule may occupy; also how far findWPRowsByPJID scans for PJIDs.
+    MAX_DRAW_ROWS: 250
   }
 };
 

@@ -41,8 +41,37 @@ function pickFontColor(bgHex) {
 }
 
 /**
+ * Station fill: L-HAN is EA_LAN, anything else (HAN) is EA_HAN.
+ * @param {string} station
+ * @param {object} colors CONFIG.COLORS
+ * @returns {string}
+ */
+function stationFill(station, colors) {
+  return station === "L-HAN" ? colors.EA_LAN : colors.EA_HAN;
+}
+
+/**
+ * Style for a Phase WP (CHK short-TAT): the label keeps the station fill even at night (never the
+ * night red); night is signalled by a bold red font on the unfilled reg cell below the label.
+ * @param {{station: string, nightShiftRequired: boolean}} opts
+ * @param {object} colors CONFIG.COLORS
+ * @returns {{labelBg: string, labelFont: string, bold: true, regFont: string|null, regBold: boolean}}
+ */
+function resolvePhaseStyle(opts, colors) {
+  var labelBg = stationFill(opts.station, colors);
+  return {
+    labelBg: labelBg,
+    labelFont: pickFontColor(labelBg),
+    bold: true,
+    regFont: opts.nightShiftRequired ? colors.NIGHT_REG_FONT : null,
+    regBold: !!opts.nightShiftRequired
+  };
+}
+
+/**
  * Resolves every style decision for one check row.
- * @param {{acType: string, isChk: boolean, nightShiftRequired: boolean, assigned: boolean, changed: boolean}} opts
+ * @param {{acType: string, isChk: boolean, nightShiftRequired: boolean, assigned: boolean, changed: boolean, fill?: string}} opts
+ *   `fill`, when given, overrides the A/C-type bar color (used for station-colored Other short checks).
  * @param {object} colors CONFIG.COLORS
  * @returns {{barColor: string, labelBg: string, labelFont: string, bold: boolean,
  *            border: null|{color: string, style: string}}}
@@ -55,6 +84,7 @@ function resolveCheckStyle(opts, colors) {
     case "B787": barColor = colors.B787; break;
     default: barColor = colors.DEFAULT; break;
   }
+  if (opts.fill) barColor = opts.fill;
   var labelBg = opts.nightShiftRequired ? colors.NIGHT_SHIFT_FLAG : barColor;
   var border = null;
   if (opts.changed) border = { color: colors.CHANGE_HIGHLIGHT, style: "SOLID_THICK" };
@@ -87,6 +117,8 @@ if (typeof module !== "undefined" && module.exports) {
     relativeLuminance: relativeLuminance,
     contrastRatio: contrastRatio,
     pickFontColor: pickFontColor,
+    stationFill: stationFill,
+    resolvePhaseStyle: resolvePhaseStyle,
     resolveCheckStyle: resolveCheckStyle,
     orderBorders: orderBorders
   };
