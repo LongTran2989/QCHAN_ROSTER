@@ -228,6 +228,7 @@ function runUpdateACSchedules() {
     var areaToClear = currentSheet.getRange(drawStartRow, CONFIG.ROSTER.LEFT_COL - 1, Math.max(200, rowsNeeded), 33 + 7);
     areaToClear.clearContent();
     areaToClear.clearFormat();
+    areaToClear.clearNote();
 
     // Batch Output Definitions
     var renderPayloads = [];
@@ -251,7 +252,7 @@ function runUpdateACSchedules() {
         // Font is derived from the station fill so the label is always legible (never red-on-colour).
         renderPayloads.push({range: [paintRow, paintCol], val: phaseLabel, bg: phaseStyle.labelBg, color: phaseStyle.labelFont, bold: phaseStyle.bold, note: phaseNote});
 
-        var nsLabel = buildRegLabel(phaseRow[SCHEDULE_INDEX.AC_REG], phaseRow[SCHEDULE_INDEX.TAT]);
+        var nsLabel = buildRegLabel(phaseRow[SCHEDULE_INDEX.AC_REG], phaseRow[SCHEDULE_INDEX.TAT], phaseNight);
         // The reg cell is clipped like the label above it, so carry the full text in a note too.
         // It is unfilled: night coverage is the bold red font here (red never sits on a colored fill).
         renderPayloads.push({range: [paintRow + 1, paintCol], val: nsLabel, bg: null, color: phaseStyle.regFont, bold: phaseStyle.regBold, note: nsLabel + ""});

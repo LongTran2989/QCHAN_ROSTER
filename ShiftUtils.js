@@ -117,13 +117,14 @@ function buildCheckLabel(opts) {
 }
 
 /**
- * Text for a reg cell: the reg, plus " NS" for 0.5-day TAT WPs.
+ * Text for a reg cell: the reg, plus " NS" for 0.5-day TAT WPs or when night shift is required.
  * @param {string} acReg
  * @param {number|string} tat
+ * @param {boolean} [nightShiftRequired]
  * @returns {string}
  */
-function buildRegLabel(acReg, tat) {
-  return String(tat) === "0.5" ? acReg + " NS" : acReg;
+function buildRegLabel(acReg, tat, nightShiftRequired) {
+  return (String(tat) === "0.5" || nightShiftRequired) ? acReg + " NS" : acReg;
 }
 
 /**

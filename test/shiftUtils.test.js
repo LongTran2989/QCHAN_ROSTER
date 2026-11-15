@@ -182,6 +182,12 @@ test("buildRegLabel adds the NS marker for 0.5-day TAT (number or string) only",
   assert.strictEqual(ShiftUtils.buildRegLabel("A350-1", 12), "A350-1");
 });
 
+test("buildRegLabel adds NS when night shift is required, once only", function () {
+  assert.strictEqual(ShiftUtils.buildRegLabel("A123", 5, true), "A123 NS");
+  assert.strictEqual(ShiftUtils.buildRegLabel("A123", 5, false), "A123");
+  assert.strictEqual(ShiftUtils.buildRegLabel("A123", 0.5, true), "A123 NS");
+});
+
 test("setLabelAssignee appends the assignee to an unassigned label", function () {
   assert.strictEqual(setLabelAssignee("★ 4C 🌙", "Tran B."), "★ 4C 🌙 · Tran B.");
 });
