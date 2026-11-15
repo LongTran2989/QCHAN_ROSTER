@@ -92,15 +92,40 @@ function buildShiftNote(shiftInfo) {
 }
 
 /**
- * Compact suffix appended to a check's label, e.g. " (E)" or " (E N)".
- * @param {ReturnType<typeof classifyWP>} shiftInfo
+ * Compact suffix appended to a check label: a moon when night-shift coverage is required, else
+ * empty. Shift letters (E/M) live in the cell note, not the label.
+ * @param {ReturnType<typeof classifyWP>|null|undefined} shiftInfo
  * @returns {string}
  */
 function buildShiftLabelSuffix(shiftInfo) {
-  var suffix = " (" + shiftInfo.fromShift;
-  if (shiftInfo.nightShiftRequired) suffix += " N";
-  suffix += ")";
-  return suffix;
+  return (shiftInfo && shiftInfo.nightShiftRequired) ? " \u{1F319}" : "";
+}
+
+/**
+ * Single-line label: [star ]<check><moon>[ middot <assignee>]. Newlines are collapsed to spaces so
+ * the cell never needs to wrap (keeps short-TAT rows at the fixed row height).
+ * @param {{acCheck: string, isChk: boolean, shiftInfo: object|null, assigneeShort?: string}} opts
+ * @returns {string}
+ */
+function buildCheckLabel(opts) {
+  var flat = function (s) { return String(s == null ? "" : s).replace(/\s*[\r\n]+\s*/g, " "); };
+  var label = (opts.isChk ? "★ " : "") + flat(opts.acCheck) + buildShiftLabelSuffix(opts.shiftInfo);
+  if (opts.assigneeShort) label += " · " + flat(opts.assigneeShort);
+  return label;
+}
+
+/**
+ * Rewrites the assignee part of an existing check label (the text after " · "), keeping the
+ * rest. Legacy two-line labels are reduced to their first line. Empty name removes the assignee.
+ * @param {string} label
+ * @param {string} shortName
+ * @returns {string} single-line label
+ */
+function setLabelAssignee(label, shortName) {
+  var base = String(label == null ? "" : label).split(/\r?\n/)[0];
+  var idx = base.indexOf(" · ");
+  if (idx >= 0) base = base.slice(0, idx);
+  return shortName ? base + " · " + shortName : base;
 }
 
 // Allow `node test/shiftUtils.test.js` to require() this file, while GAS still sees plain globals.
@@ -113,6 +138,8 @@ if (typeof module !== "undefined" && module.exports) {
     classifyWP: classifyWP,
     formatBangkokTime: formatBangkokTime,
     buildShiftNote: buildShiftNote,
-    buildShiftLabelSuffix: buildShiftLabelSuffix
+    buildShiftLabelSuffix: buildShiftLabelSuffix,
+    buildCheckLabel: buildCheckLabel,
+    setLabelAssignee: setLabelAssignee
   };
 }

@@ -140,3 +140,97 @@ function recordUpdateMetadata(sheet) {
     console.error("Failed to record metadata: " + err.message);
   }
 }
+
+// Ported from the live Apps Script project. Not bound to any menu or trigger.
+function get_CRS_C_schedue() {
+  const ssSchedule = SpreadsheetApp.openById("1Gu95iNF9mqYG0U-OHn_RFUgIYN7pbPSzyEp0nUaYAT0");
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getActiveSheet();
+  const name = sh.getName();
+  const month = sh.getName().split(" ")[0];
+
+
+  const date = new Date();
+  const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+
+  if (!months.includes(name.substring(0, 3))) {
+    return;
+  }
+
+
+  // const name = sh.getName();
+  const ssSheets = ssSchedule.getSheets()
+
+  var shSchedule = ssSheets.find((v) => v.getName().includes(month))
+  if (!shSchedule) {
+    shSchedule = ssSchedule.getSheetByName("RAW").copyTo(ssSchedule)
+    shSchedule.showSheet()
+    shSchedule.activate()
+    ssSchedule.moveActiveSheet(0)
+  }
+  shSchedule.setName(name)
+
+
+
+
+  const values = sh.getDataRange().getValues();
+
+  let r1 = -1;
+  let r2 = -1;
+
+  for (let i = 0; i < values.length; i++) {
+    const value = String(values[i][1] ?? "");
+
+    if (value.includes("NORMAL CHECKS")) {
+      r1 = i;
+    }
+
+    if (value.includes("END OF LIST")) {
+      r2 = i;
+    }
+  }
+
+  if (r1 === -1 || r2 === -1) {
+    throw new Error("Không tìm thấy NORMAL CHECKS hoặc END OF LIST");
+  }
+  values.splice(r2 + 1, 50)
+  values.splice(3, r1 - 3);
+
+  const data = values;
+  // Xóa sheet cũ
+  shSchedule.clear();
+
+  // Ghi dữ liệu
+  shSchedule
+    .getRange(1, 1, data.length, data[0].length)
+    .setValues(data);
+
+  // Copy format một lần
+  const sourceRange = sh.getRange(
+    r1 + 1,
+    1,
+    data.length,
+    data[0].length
+  );
+
+  const targetRange = shSchedule.getRange(
+    4,
+    1,
+    data.length,
+    data[0].length
+  );
+
+  targetRange.setBackgrounds(sourceRange.getBackgrounds());
+  targetRange.setFontColors(sourceRange.getFontColors());
+  targetRange.setFontFamilies(sourceRange.getFontFamilies());
+  targetRange.setFontSizes(sourceRange.getFontSizes());
+  targetRange.setFontWeights(sourceRange.getFontWeights());
+  targetRange.setFontStyles(sourceRange.getFontStyles());
+  targetRange.setNumberFormats(sourceRange.getNumberFormats());
+  targetRange.setHorizontalAlignments(sourceRange.getHorizontalAlignments());
+  targetRange.setVerticalAlignments(sourceRange.getVerticalAlignments());
+  targetRange.setWrapStrategies(sourceRange.getWrapStrategies());
+
+
+}

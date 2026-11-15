@@ -9,23 +9,16 @@ const CONFIG = {
     SCHEDULE: 2119712554,
     ROSTER_TEMPLATE: "ROSTER_TEMPLATE",
     EMAILS_SHEET: "Email_Config",
-    CHANGE_LOG_SHEET: "Change Log"
+    CHANGE_LOG_SHEET: "Change Log",
+    ASSIGNMENTS_DB: "Assignments_DB"
   },
 
-  // Source of truth for the AC CHECKS cache: the ops WP tracking spreadsheet.
-  // "AC CHECKS" (SHEET_IDS.SCHEDULE above) is rebuilt from this every update run.
-  EXTERNAL_WP_SOURCE: {
-    SPREADSHEET_ID: "17mJ0MqX5qiSeVRo7Atv0qmWRdsvZqaF2rwxN71bD7sE",
-    TAB_NAME: "RAW"
-  },
-
-  // External sheet's Station codes -> the labels the roster grid filters on.
-  STATION_CODE_MAP: {
-    "NTHN": "HAN",
-    "NGTHN": "L-HAN",
-    "NTHCM": "HCM",
-    "NGTHCM": "L-HCM",
-    "CNDN": "DAD"
+  // Schedule source: SharePoint Excel link (anonymous share). Downloaded with cookie-aware
+  // redirect handling (see ExternalSource.js). ENABLED = false falls back to the SCHEDULE tab.
+  EXTERNAL_SOURCE: {
+    URL: "https://vaecovna-my.sharepoint.com/:x:/g/personal/nguyendinhkhanh_vaeco_com_vn/IQDQlCIeF2Y6R7vOHjuFSWo1ASGlooDnTJBXBv6y5Y75axI?e=FBI5ph",
+    ENABLED: true, // true = SharePoint raw AMOS export (tab 'RAW', converted by convertRawToSchedule); false = in-spreadsheet SCHEDULE tab
+    SHEET_NAME: "RAW" // tab to read; empty = first tab
   },
 
   SNAPSHOT_SHEET_PREFIX: "_Snapshot_",
@@ -39,6 +32,15 @@ const CONFIG = {
     UPDATE_INFO_CELL: "B75"
   },
 
+  // Personnel info indexes assuming column mappings (legacy, from live Apps Script project)
+  PERSONNEL: {
+    TT: 0,
+    VAECO_ID: 1,
+    NAME: 2,
+    TITLE: 3,
+    PJID: 37
+  },
+
   // Source of names for the Assign Personnel sidebar
   PERSONNEL_SHEET: {
     NAME: "Personel info",
@@ -46,21 +48,30 @@ const CONFIG = {
     START_ROW: 2
   },
 
-  // Color mapping by Aircraft Type
+  // Color mapping. All hex so ScheduleStyle.js can compute contrast (WCAG >= 4.5:1, enforced by
+  // test/scheduleStyle.test.js). Pastel fills take black text; NIGHT_SHIFT_FLAG takes white text.
   COLORS: {
-    A320: "yellow",
-    A321: "yellow",
-    A350: "#56a9cb",
-    B787: "orange",
-    DEFAULT: "#d9d9d9", // was a salmon/light-red -- too close to CHK-type rows' red label text
-    EA_LAN: "#00ffff", // L-HAN
-    EA_HAN: "#00ff00", // HAN
+    A320: "#FFF59D",
+    A321: "#FFF59D",
+    A350: "#81D4FA",
+    B787: "#FFCC80",
+    DEFAULT: "#CE93D8",
+    EA_LAN: "#80DEEA", // L-HAN
+    EA_HAN: "#A5D6A7", // HAN
     BG_SAT_SUN: "gray",
     BG_NULL: "black",
     WHITE: "white",
-    // Border color (not a fill) marking a WP that needs night-shift coverage -- must never
-    // be used as a background, since CHK-type rows' label text is also red (see ScheduleManager.js).
-    NIGHT_SHIFT_FLAG: "#ff4d4d",
-    CHANGE_HIGHLIGHT: "orange" // border around a WP row that was added/changed this run
+    NIGHT_SHIFT_FLAG: "#EF9A9A", // start/end day of a WP needing night-shift coverage (light red: black text stays legible when the label overflows onto neighbouring cells)
+    CHANGE_HIGHLIGHT: "#6A1B9A", // border around a WP row that was added/changed this run
+    UNASSIGNED_BORDER: "#424242" // dashed border around a WP row with no assignee
+  },
+
+  // Fixed row height (px) for schedule rows so long labels never make short checks tall
+  LAYOUT: {
+    ROW_HEIGHT: 21
   }
 };
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { CONFIG: CONFIG };
+}
