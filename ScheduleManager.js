@@ -180,15 +180,7 @@ function runUpdateACSchedules() {
         .concat(diffResult.changed.map(function (e) { return e.pjid; }))
     );
 
-    // USER FEEDBACK: Assure clean slate format over drawing area
-    var areaToClear = currentSheet.getRange(CONFIG.ROSTER.LOWER_ROW + 3, CONFIG.ROSTER.LEFT_COL - 1, 200, 33 + 7);
-    areaToClear.clearContent();
-    areaToClear.clearFormat();
-
-    // Batch Output Definitions
-    var renderPayloads = [];
-
-// --- SPLIT THE LISTS ---
+    // --- SPLIT THE LISTS ---
     // Short-TAT (0.5 / 1 day) WPs: only CHK ones are Phase checks (staff attend in person); the
     // rest render as an "OTHER SHORT CHECKS" group under NORMAL CHECKS. Both keep comparator order.
     filteredData_EA = filteredData_EA.sort(comparator);
@@ -224,6 +216,22 @@ function runUpdateACSchedules() {
       stoCount: filteredDataSTO.length
     });
 
+    // USER FEEDBACK: Assure clean slate format over drawing area. Sized from the layout so a tall
+    // layout never leaves stale content/format behind; refuse (before touching the sheet) if the
+    // layout would outgrow the rows the sidebar scans for PJIDs (findWPRowsByPJID).
+    var drawStartRow = CONFIG.ROSTER.LOWER_ROW + 3;
+    var rowsNeeded = layout.lastRow - drawStartRow + 1;
+    if (rowsNeeded > CONFIG.LAYOUT.MAX_DRAW_ROWS) {
+      throw new Error("The schedule needs " + rowsNeeded + " rows below the roster but at most " +
+        CONFIG.LAYOUT.MAX_DRAW_ROWS + " are supported. Roster was not changed.");
+    }
+    var areaToClear = currentSheet.getRange(drawStartRow, CONFIG.ROSTER.LEFT_COL - 1, Math.max(200, rowsNeeded), 33 + 7);
+    areaToClear.clearContent();
+    areaToClear.clearFormat();
+
+    // Batch Output Definitions
+    var renderPayloads = [];
+
     // --- PHASE CHECKS LOGIC ---
     renderPayloads.push({range: [layout.phaseHeaderRow, CONFIG.ROSTER.LEFT_COL - 1], val: "PHASE CHECKS", bg: null, color: null, bold: false});
 
@@ -243,7 +251,7 @@ function runUpdateACSchedules() {
         // Font is derived from the station fill so the label is always legible (never red-on-colour).
         renderPayloads.push({range: [paintRow, paintCol], val: phaseLabel, bg: phaseStyle.labelBg, color: phaseStyle.labelFont, bold: phaseStyle.bold, note: phaseNote});
 
-        var nsLabel = phaseRow[SCHEDULE_INDEX.TAT] == "0.5" ? `${phaseRow[SCHEDULE_INDEX.AC_REG]} NS` : phaseRow[SCHEDULE_INDEX.AC_REG];
+        var nsLabel = buildRegLabel(phaseRow[SCHEDULE_INDEX.AC_REG], phaseRow[SCHEDULE_INDEX.TAT]);
         // The reg cell is clipped like the label above it, so carry the full text in a note too.
         // It is unfilled: night coverage is the bold red font here (red never sits on a colored fill).
         renderPayloads.push({range: [paintRow + 1, paintCol], val: nsLabel, bg: null, color: phaseStyle.regFont, bold: phaseStyle.regBold, note: nsLabel + ""});
@@ -256,19 +264,19 @@ function runUpdateACSchedules() {
     // --- NORMAL CHECKS LOGIC ---
     renderPayloads.push({range: [layout.normalHeaderRow, CONFIG.ROSTER.LEFT_COL - 1], val: "NORMAL CHECKS", bg: null, color: null, bold: false});
     var borderOps = [];
-    drawChecksBlock(filteredDataNormal, layout.normalStartRow, assignedPersonByPjid, highlightedPjids, renderPayloads, shiftInfoByRow, currentSheet, borderOps, false);
+    drawChecksBlock(filteredDataNormal, layout.normalStartRow, assignedPersonByPjid, highlightedPjids, renderPayloads, shiftInfoByRow, currentSheet, borderOps);
 
     // --- OTHER SHORT CHECKS (non-CHK short-TAT WPs; station-colored; exported with Normal by Utils.js) ---
     if (otherShort.length > 0) {
       renderPayloads.push({range: [layout.otherHeaderRow, CONFIG.ROSTER.LEFT_COL - 1], val: "OTHER SHORT CHECKS", bg: null, color: null, bold: false});
-      drawChecksBlock(otherShort, layout.otherStartRow, assignedPersonByPjid, highlightedPjids, renderPayloads, shiftInfoByRow, currentSheet, borderOps, true);
+      drawChecksBlock(otherShort, layout.otherStartRow, assignedPersonByPjid, highlightedPjids, renderPayloads, shiftInfoByRow, currentSheet, borderOps, {useStationFill: true});
     }
 
     // Utils.js (sheet export) parses this exact marker in column B.
     renderPayloads.push({range: [layout.endOfListRow, 2], val: "END OF LIST", bg: null, color: null, bold: false});
 
     // --- STO CHECKS LOGIC ---
-    drawChecksBlock(filteredDataSTO, layout.stoStartRow, assignedPersonByPjid, highlightedPjids, renderPayloads, shiftInfoByRow, currentSheet, borderOps, false);
+    drawChecksBlock(filteredDataSTO, layout.stoStartRow, assignedPersonByPjid, highlightedPjids, renderPayloads, shiftInfoByRow, currentSheet, borderOps);
 
     // Dashed (unassigned) first, solid thick (changed) last so a changed row's box is never overdrawn
     // by a neighbouring unassigned row's shared edge.
@@ -306,16 +314,18 @@ function runUpdateACSchedules() {
 }
 
 /**
- * Helper to build Grid payloads for block definitions
+ * Helper to build Grid payloads for block definitions.
+ * @param {{useStationFill?: boolean}} [options] useStationFill: color bars by HAN / L-HAN instead of A/C type.
  */
-function drawChecksBlock(dataBlock, startRow, assignedPersonByPjid, highlightedPjids, renderQueue, shiftInfoByRow, currentSheet, borderOps, useStationFill) {
+function drawChecksBlock(dataBlock, startRow, assignedPersonByPjid, highlightedPjids, renderQueue, shiftInfoByRow, currentSheet, borderOps, options) {
   for (var i = 0; i < dataBlock.length; i++) {
     var pjid = dataBlock[i][SCHEDULE_INDEX.PJID] + "";
     var acReg = dataBlock[i][SCHEDULE_INDEX.AC_REG];
     var assignedPerson = assignedPersonByPjid[pjid] || "";
     var shortName = assignedPerson ? toInitialsWithFirstName(assignedPerson) : "";
 
-    renderQueue.push({range: [startRow + i, CONFIG.ROSTER.LEFT_COL - 1], val: acReg});
+    // AC Reg column: keeps the "NS" marker for 0.5-day TAT rows (Other short checks).
+    renderQueue.push({range: [startRow + i, CONFIG.ROSTER.LEFT_COL - 1], val: buildRegLabel(acReg, dataBlock[i][SCHEDULE_INDEX.TAT])});
 
     var isChk = (dataBlock[i][SCHEDULE_INDEX.PJID] + "").indexOf("CHK") !== -1;
 
@@ -327,7 +337,7 @@ function drawChecksBlock(dataBlock, startRow, assignedPersonByPjid, highlightedP
       assigned: !!assignedPerson,
       changed: highlightedPjids.has(pjid),
       // Other short checks use the HAN / L-HAN station fill instead of the A/C-type color.
-      fill: useStationFill ? stationFill(dataBlock[i][SCHEDULE_INDEX.STATION], CONFIG.COLORS) : undefined
+      fill: (options && options.useStationFill) ? stationFill(dataBlock[i][SCHEDULE_INDEX.STATION], CONFIG.COLORS) : undefined
     }, CONFIG.COLORS);
     var barColor = style.barColor;
 

@@ -69,7 +69,9 @@ const CONFIG = {
 
   // Fixed row height (px) for schedule rows so long labels never make short checks tall
   LAYOUT: {
-    ROW_HEIGHT: 21
+    ROW_HEIGHT: 21,
+    // Max rows below the roster the schedule may occupy; also how far findWPRowsByPJID scans for PJIDs.
+    MAX_DRAW_ROWS: 250
   }
 };
 

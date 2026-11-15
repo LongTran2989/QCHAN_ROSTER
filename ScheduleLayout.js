@@ -35,7 +35,7 @@ function assignPhaseSlots(cols) {
  * @returns {{phaseHeaderRow: number, phaseStartRow: number, phaseRowCount: number,
  *            normalHeaderRow: number, normalStartRow: number,
  *            otherHeaderRow: (number|null), otherStartRow: (number|null),
- *            endOfListRow: number, stoStartRow: number}}
+ *            endOfListRow: number, stoStartRow: number, lastRow: number}}
  */
 function computeScheduleLayout(opts) {
   var phaseStartRow = opts.phaseHeaderRow + 1;
@@ -63,7 +63,9 @@ function computeScheduleLayout(opts) {
     otherHeaderRow: otherHeaderRow,
     otherStartRow: otherStartRow,
     endOfListRow: endOfListRow,
-    stoStartRow: endOfListRow + 1
+    stoStartRow: endOfListRow + 1,
+    // Last row any section writes: callers use it to size the cleared area / check the scan limit.
+    lastRow: Math.max(endOfListRow, endOfListRow + opts.stoCount)
   };
 }
 

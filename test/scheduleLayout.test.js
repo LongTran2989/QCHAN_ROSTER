@@ -76,6 +76,12 @@ test("computeScheduleLayout reproduces today's rows with no Other short group", 
   assert.strictEqual(l.stoStartRow, 100);
 });
 
+test("lastRow is the last row the layout writes (END OF LIST when there is no STO)", function () {
+  assert.strictEqual(layout().lastRow, 102);
+  assert.strictEqual(layout({ stoCount: 0 }).lastRow, 99);
+  assert.strictEqual(layout({ otherCount: 4, stoCount: 2 }).lastRow, 107);
+});
+
 test("computeScheduleLayout places the Other short group between Normal and END OF LIST", function () {
   var l = layout({ otherCount: 4 });
   assert.strictEqual(l.otherHeaderRow, 98);

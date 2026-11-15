@@ -174,6 +174,14 @@ test("buildShiftNote omits the warning when night shift isn't required", functio
   assert.ok(note.indexOf("Night shift coverage required") === -1, note);
 });
 
+test("buildRegLabel adds the NS marker for 0.5-day TAT (number or string) only", function () {
+  assert.strictEqual(ShiftUtils.buildRegLabel("A350-1", 0.5), "A350-1 NS");
+  assert.strictEqual(ShiftUtils.buildRegLabel("A350-1", "0.5"), "A350-1 NS");
+  assert.strictEqual(ShiftUtils.buildRegLabel("A350-1", 1), "A350-1");
+  assert.strictEqual(ShiftUtils.buildRegLabel("A350-1", "1"), "A350-1");
+  assert.strictEqual(ShiftUtils.buildRegLabel("A350-1", 12), "A350-1");
+});
+
 test("setLabelAssignee appends the assignee to an unassigned label", function () {
   assert.strictEqual(setLabelAssignee("★ 4C 🌙", "Tran B."), "★ 4C 🌙 · Tran B.");
 });

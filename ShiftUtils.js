@@ -117,6 +117,16 @@ function buildCheckLabel(opts) {
 }
 
 /**
+ * Text for a reg cell: the reg, plus " NS" for 0.5-day TAT WPs.
+ * @param {string} acReg
+ * @param {number|string} tat
+ * @returns {string}
+ */
+function buildRegLabel(acReg, tat) {
+  return String(tat) === "0.5" ? acReg + " NS" : acReg;
+}
+
+/**
  * Rewrites the assignee part of an existing check label (the text after " · "), keeping the
  * rest. Legacy two-line labels are reduced to their first line. Empty name removes the assignee.
  * @param {string} label
@@ -142,6 +152,7 @@ if (typeof module !== "undefined" && module.exports) {
     buildShiftNote: buildShiftNote,
     buildShiftLabelSuffix: buildShiftLabelSuffix,
     buildCheckLabel: buildCheckLabel,
+    buildRegLabel: buildRegLabel,
     setLabelAssignee: setLabelAssignee
   };
 }

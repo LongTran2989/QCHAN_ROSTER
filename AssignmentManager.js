@@ -13,7 +13,7 @@
  */
 function findWPRowsByPJID(sheet) {
   var startRow = CONFIG.ROSTER.LOWER_ROW + 3;
-  var numRows = 250;
+  var numRows = CONFIG.LAYOUT.MAX_DRAW_ROWS;
   var values = sheet.getRange(startRow, 38, numRows, 1).getValues();
 
   var map = {};

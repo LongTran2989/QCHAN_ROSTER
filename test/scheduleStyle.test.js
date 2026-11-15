@@ -6,6 +6,28 @@ var assert = require("assert");
 var COLORS = require("../Config.js").CONFIG.COLORS;
 var Style = require("../ScheduleStyle.js");
 
+function srgbToLab(hex) {
+  var lin = [1, 3, 5].map(function (i) {
+    var c = parseInt(hex.substr(i, 2), 16) / 255;
+    return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  // sRGB -> XYZ (D65), then normalised by the D65 white point.
+  var x = (0.4124564 * lin[0] + 0.3575761 * lin[1] + 0.1804375 * lin[2]) / 0.95047;
+  var y = (0.2126729 * lin[0] + 0.7151522 * lin[1] + 0.0721750 * lin[2]) / 1.0;
+  var z = (0.0193339 * lin[0] + 0.1191920 * lin[1] + 0.9503041 * lin[2]) / 1.08883;
+  var f = function (t) { return t > 216 / 24389 ? Math.cbrt(t) : (24389 / 27 * t + 16) / 116; };
+  var fx = f(x), fy = f(y), fz = f(z);
+  return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+}
+
+// Test-only helper (kept out of the Apps Script runtime): perceptual distance between two hex
+// colors, CIELAB delta E76 (D65, sRGB). Roughly: < 10 looks alike, >= 25 is clearly different.
+function colorDistance(hexA, hexB) {
+  var a = srgbToLab(hexA);
+  var b = srgbToLab(hexB);
+  return Math.sqrt(Math.pow(a[0] - b[0], 2) + Math.pow(a[1] - b[1], 2) + Math.pow(a[2] - b[2], 2));
+}
+
 var passed = 0;
 var failed = [];
 
@@ -157,19 +179,19 @@ test("night reg font has >= 4.5:1 contrast on white", function () {
 });
 
 test("colorDistance of a color with itself is 0", function () {
-  assert.strictEqual(Style.colorDistance("#000000", "#000000"), 0);
-  assert.strictEqual(Style.colorDistance("#66BB6A", "#66BB6A"), 0);
+  assert.strictEqual(colorDistance("#000000", "#000000"), 0);
+  assert.strictEqual(colorDistance("#66BB6A", "#66BB6A"), 0);
 });
 
 test("colorDistance black/white is about 100 (CIELAB L*)", function () {
-  var d = Style.colorDistance("#000000", "#FFFFFF");
+  var d = colorDistance("#000000", "#FFFFFF");
   assert.ok(Math.abs(d - 100) < 0.5, "d " + d);
 });
 
 ["EA_HAN", "EA_LAN"].forEach(function (key) {
   ["A320", "A350", "B787", "DEFAULT", "NIGHT_SHIFT_FLAG"].concat(key === "EA_HAN" ? ["EA_LAN"] : ["EA_HAN"]).forEach(function (other) {
     test("colorDistance " + key + " vs " + other + " is >= 25", function () {
-      var d = Style.colorDistance(COLORS[key], COLORS[other]);
+      var d = colorDistance(COLORS[key], COLORS[other]);
       assert.ok(d >= 25, "d " + d);
     });
   });
