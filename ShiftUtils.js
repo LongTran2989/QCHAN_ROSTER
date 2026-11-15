@@ -18,6 +18,17 @@ function toBangkokInstant(utcDate) {
 }
 
 /**
+ * Local-midnight Date for the Bangkok calendar day of a Bangkok-shifted instant. Reads the UTC
+ * fields (which hold Bangkok wall-clock) so the script's own timezone is not applied a second
+ * time -- setHours()/getDate() on the shifted instant would roll evening starts onto the next day.
+ * @param {Date} bangkokInstant
+ * @returns {Date}
+ */
+function bangkokDayStart(bangkokInstant) {
+  return new Date(bangkokInstant.getUTCFullYear(), bangkokInstant.getUTCMonth(), bangkokInstant.getUTCDate());
+}
+
+/**
  * Evening: local hour in [11:00, 23:00). Morning: local hour in [23:00, 11:00) (wraps midnight).
  * @param {Date} bangkokInstant - a Date already shifted via toBangkokInstant.
  * @returns {string} SHIFT.MORNING or SHIFT.EVENING
@@ -147,6 +158,7 @@ if (typeof module !== "undefined" && module.exports) {
     SHIFT: SHIFT,
     BANGKOK_OFFSET_HOURS: BANGKOK_OFFSET_HOURS,
     toBangkokInstant: toBangkokInstant,
+    bangkokDayStart: bangkokDayStart,
     getShiftForBangkokInstant: getShiftForBangkokInstant,
     classifyWP: classifyWP,
     formatBangkokTime: formatBangkokTime,

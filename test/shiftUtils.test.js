@@ -211,6 +211,16 @@ test("setLabelAssignee output never contains a newline, even for a legacy two-li
   assert.strictEqual(out, "4C · Tran B.");
 });
 
+test("bangkokDayStart keeps the Bangkok calendar day for an evening start (no double TZ shift)", function () {
+  // 13:00 UTC on the 10th = 20:00 Bangkok on the 10th; ends 22:00 UTC = 05:00 Bangkok on the 11th.
+  var info = classifyWP(new Date(Date.UTC(2026, 10, 10, 13, 0)), new Date(Date.UTC(2026, 10, 10, 22, 0)));
+  var from = ShiftUtils.bangkokDayStart(info.fromBangkok);
+  var to = ShiftUtils.bangkokDayStart(info.toBangkok);
+  assert.strictEqual(from.getDate(), 10);
+  assert.strictEqual(to.getDate(), 11);
+  assert.strictEqual(from.getHours(), 0);
+});
+
 // --- report ---
 
 console.log(passed + " passed, " + failed.length + " failed");

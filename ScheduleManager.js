@@ -121,11 +121,10 @@ function runUpdateACSchedules() {
       var shiftInfo = classifyWP(rawFromUTC, rawToUTC);
       shiftInfoByRow.set(rawData[i], shiftInfo);
 
-      rawData[i][SCHEDULE_INDEX.FROM] = new Date(shiftInfo.fromBangkok.getTime());
-      rawData[i][SCHEDULE_INDEX.TO] = new Date(shiftInfo.toBangkok.getTime());
-
-      rawData[i][SCHEDULE_INDEX.FROM].setHours(0, 0, 0, 0);
-      rawData[i][SCHEDULE_INDEX.TO].setHours(0, 0, 0, 0);
+      // Bangkok calendar day of each end (as local midnight). Don't setHours() the shifted instant:
+      // the script TZ is also Bangkok, so that would add the +7h offset twice (evening start -> next day).
+      rawData[i][SCHEDULE_INDEX.FROM] = bangkokDayStart(shiftInfo.fromBangkok);
+      rawData[i][SCHEDULE_INDEX.TO] = bangkokDayStart(shiftInfo.toBangkok);
 
       var validData = false;
 
